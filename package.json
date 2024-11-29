@@ -1,0 +1,16 @@
+{
+  "dependencies": {
+    "three": "^0.170.0",
+    "vite": "^6.0.1"
+  },
+  "name": "dragontrain-3",
+  "version": "0.0.69",
+  "description": "a three.js train demo",
+  "main": "scripty.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "start": "npx vite"
+  },
+  "author": "C. Masta",
+  "license": "UNLICENSED"
+}
