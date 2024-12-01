@@ -28,3 +28,11 @@ body{
     text-align: center;
     font-size: 69px;
 }
+
+#speed{
+    left:2%;
+    top:90%;
+    text-align: left;
+    font-size: 42px;
+    width: fit-content;
+}

@@ -15,9 +15,10 @@ music.muted = true;
 let start = false;
 
 const cenText = document.getElementById('center');
+const spdHud = document.getElementById('speed');
 //cenText.innerText = 'LOADING...';
 
-const stageDim = 500;
+const stageDim = 800;
 const scene = new THREE.Scene();
 const cam = new THREE.PerspectiveCamera(90,window.innerWidth/window.innerHeight,0.1,stageDim);
 const tLoader = new THREE.TextureLoader();
@@ -59,10 +60,12 @@ const train = [];
 const platforms = [];
 
 let dTime = 0;
+let prevTime = Date.now();
+let lastZ = 0;
 let spd = 0.02;
-let maxSpd = 0.5;
+let maxSpd = 1;
 let trainSpd = 0.5;
-let accel = 0.002;
+let accel = 0.008;
 let idleTime = 3;
 let driftSpd = 0.001;
 let driftHei = 0.042;
@@ -72,7 +75,7 @@ const planeG = new THREE.PlaneGeometry(stageDim,stageDim);
 const groundMat = new THREE.MeshLambertMaterial({map: gTex});
 const skyMat = new THREE.MeshBasicMaterial({map: bgTex, side: THREE.DoubleSide});
 
-const dome = new THREE.OctahedronGeometry(stageDim/2,2);
+const dome = new THREE.OctahedronGeometry(stageDim/2,4);
 const sky = new THREE.Mesh(dome,skyMat);
 const light = new THREE.DirectionalLight(0xffffff,2);
 const ground = new THREE.Mesh(planeG,groundMat);
@@ -83,10 +86,9 @@ scene.add(light);
 scene.add(sky);
 //scene.fog = new THREE.Fog(0xaaaaaa,0.2,stageDim-6);
 
-const origin = new THREE.Vector3(-8,1.6,-9);
-cam.position.x = origin.x;
-cam.position.y = origin.y;
-cam.position.z = origin.z;
+let camRot = Math.PI/2;
+let camDist = 30;
+let camHeight = 1.6;
 
 let fore = true;
 let drift = true;
@@ -96,30 +98,37 @@ let idle = undefined;
 
 initSizes();
 setPlatforms();
-const trainGp = new THREE.Group();
+let origin = new THREE.Vector3(0,camHeight,0);
+cam.position.x = origin.x + camDist;
+cam.position.y = origin.y;
+cam.position.z = origin.z;
+const trainGp = new THREE.Object3D();
 
 //---------------------------- GAME LOOP -----------------------------//
 
 rend.render(scene,cam);
-dTime = Number(Date.now());
 rend.setAnimationLoop(anim);
 
 function anim(){
     rend.render(scene,cam);
-    dTime = Number(Date.now()) - dTime;
     if(trainLoad < trainCars){
         if(trackLoad > 2 && !tracksLoaded){
             setTracks();
             setTrain(3);
             tracksLoaded = true;
+            origin.z = engineSize.z/2;
             trainGp.add(cam);
-            cam.rotation.y = -3*Math.PI/4;
+            cam.rotation.y = 3*Math.PI/4;
         }
     }else{
         moveTrain();
     }
     moveCam();
     sky.rotation.y += skyRot;
+    let speedOm = (trainGp.position.z - lastZ) / ((Date.now() - prevTime)/1000) * (18/5);
+    prevTime = Date.now();
+    lastZ = trainGp.position.z;
+    spdHud.innerText = `${Math.abs(speedOm).toPrecision(3)} km/hr`;
 }
 
 function near(q,r,tol){
@@ -218,7 +227,9 @@ window.addEventListener('touchstart',(e)=>{
 
 window.addEventListener('mousemove',(e)=>{
     if(mouseDown){
-        cam.rotation.y += e.movementX * spd;
+        //cam.rotation.y += e.movementX * spd;
+        camRot += e.movementX*spd;
+        moveCam2();
     }
 });
 
@@ -278,7 +289,6 @@ function moveTrain(){
 
 function checkApproach(){
     if(!approach){
-        let trainLen = train.length;
         let dis = 0;
         if(fore){
             dis = trainGp.position.z + trainCars * carSize.z + engineSize.z - platforms[0].position.z;
@@ -293,22 +303,6 @@ function checkApproach(){
     }
 }
 
-/*
-if(fore){
-        if(trainGp.position.z < stageDim/2 - (engineSize.z*2 + carSize.z*trainCars) - 2){
-            trainGp.position.z += trainSpd;
-        }else{
-            fore = false;
-        }
-    }else{
-        if(trainGp.position.z > -(stageDim/2 - engineSize.z)){
-            trainGp.position.z -= trainSpd;
-        }else{
-            fore = true;
-        }
-    }
-*/
-
 function switchDir(){
     if(fore){
         fore = false;
@@ -318,21 +312,22 @@ function switchDir(){
 }
 
 function moveCam(){
-    let dirF = new THREE.Vector3();
-    let sign = 1;
-    cam.getWorldDirection(dirF);
     if(input[1] != 0){
-        cam.position.x += dirF.x * spd * input[1];
-        cam.position.z += dirF.z * spd * input[1];
+        camDist += spd * input[1];
+        moveCam2();
     }
     if(input[0] != 0){
-        if(dirF.x < 0){
-            sign = -1;
-        }
-        cam.position.x += Math.sin(new THREE.Vector3(1,0,0).angleTo(dirF)) * spd * input[0] * sign;
-        cam.position.z += Math.sin(new THREE.Vector3(0,0,1).angleTo(dirF)) * spd * input[0] * sign;
+        origin.z += spd * input[0];
+        moveCam2();
         //console.log(Math.cos(new THREE.Vector3(1,0,0).angleTo(dirF)),new THREE.Vector3(0,0,1).angleTo(dirF));
     }
+}
+
+function moveCam2(){
+    cam.position.z = origin.z + camDist * Math.cos(camRot);
+    cam.position.x = origin.x + camDist * Math.sin(camRot);
+    cam.lookAt(new THREE.Vector3().addVectors(trainGp.position,origin));
+    //console.log(origin);
 }
 
 function initSizes(){
