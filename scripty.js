@@ -3,9 +3,11 @@ import {GLTFLoader} from 'three/addons/loaders/GLTFLoader.js';
 
 const bgImg = './graphics/blueSky2.jpg';
 const groundTex = './graphics/grass.jpg';
-const trainHead = './graphics/engine.glb';
-const trainCar = './graphics/passengercar.glb';
+const trainHead = './graphics/engine2.glb';
+const trainCar = './graphics/passengercar2.glb';
 const track = './graphics/tracks.glb';
+const station = './graphics/station.glb';
+const alien = './graphics/alienBeing.glb';
 
 const music = document.createElement("AUDIO");
 music.loop = true;
@@ -16,11 +18,14 @@ let start = false;
 
 const cenText = document.getElementById('center');
 const spdHud = document.getElementById('speed');
+const brake = document.getElementById('brake');
 //cenText.innerText = 'LOADING...';
 
-const stageDim = 800;
+const stageDim = 1000;
 const scene = new THREE.Scene();
 const cam = new THREE.PerspectiveCamera(90,window.innerWidth/window.innerHeight,0.1,stageDim);
+const camS0 = new THREE.PerspectiveCamera(90,window.innerWidth/window.innerHeight,0.1,stageDim);
+const camS1 = new THREE.PerspectiveCamera(90,window.innerWidth/window.innerHeight,0.1,stageDim);
 const tLoader = new THREE.TextureLoader();
 const gLoader = new GLTFLoader();
 const bgTex = tLoader.load(bgImg);
@@ -40,32 +45,52 @@ const xTrack = 0;
 let engineSize = new THREE.Vector3();
 let carSize = new THREE.Vector3();
 let trackSize = new THREE.Vector3();
+let pSize = new THREE.Vector3();
 let trackLoad = 0;
 let trainLoad = 0;
 const trainCars = 3;
 let tracksLoaded = false;
 
-let pause = false;
+let doorOpenClip = undefined;
+
+let engineOffset = -0.85;
+let passOffset = -0.1;
+let distOffset = 1;
+
+let stationYoff = 0.75;
+let stationXoff = 3.3;
+let stationXoff2= 2.5;
+let stationZoff = 3;
+let statY = 1.75;
+
 let mouseDown = false;
 const doubleTapThresh = 0.42;
 let tapCounter = undefined;
 let touchX = undefined;
 
-const maxInput = 4;
+let doorsOpen = false;
+
+const maxInput = 10;
 let input = [0,0];
 
 //const scenery = [];
 const tracks = [];
 const train = [];
 const platforms = [];
+const trainMixers = [];
+const peeps = [];
+const peepMixers = [];
+
+let numPeeps = 10;
+let peepClip = undefined;
 
 let dTime = 0;
 let prevTime = Date.now();
 let lastZ = 0;
 let spd = 0.02;
-let maxSpd = 1;
+let maxSpd = 1.5;
 let trainSpd = 0.5;
-let accel = 0.008;
+let accel = 0.016;
 let idleTime = 3;
 let driftSpd = 0.001;
 let driftHei = 0.042;
@@ -77,12 +102,14 @@ const skyMat = new THREE.MeshBasicMaterial({map: bgTex, side: THREE.DoubleSide})
 
 const dome = new THREE.OctahedronGeometry(stageDim/2,4);
 const sky = new THREE.Mesh(dome,skyMat);
-const light = new THREE.DirectionalLight(0xffffff,2);
+const light = new THREE.DirectionalLight(0xffffff,1);
+const ambLight = new THREE.AmbientLight(0xffffff);
 const ground = new THREE.Mesh(planeG,groundMat);
 ground.rotation.x = -Math.PI/2;
 ground.position.y = 0;
 scene.add(ground);
 scene.add(light);
+scene.add(ambLight);
 scene.add(sky);
 //scene.fog = new THREE.Fog(0xaaaaaa,0.2,stageDim-6);
 
@@ -90,11 +117,14 @@ let camRot = Math.PI/2;
 let camDist = 30;
 let camHeight = 1.6;
 
+let interestCam = cam;
+
 let fore = true;
 let drift = true;
 let approach = false;
 let stop = false;
 let idle = undefined;
+let ready = false;
 
 initSizes();
 setPlatforms();
@@ -106,26 +136,41 @@ const trainGp = new THREE.Object3D();
 
 //---------------------------- GAME LOOP -----------------------------//
 
-rend.render(scene,cam);
+rend.render(scene,interestCam);
 rend.setAnimationLoop(anim);
 
 function anim(){
-    rend.render(scene,cam);
+    rend.render(scene,interestCam);
     if(trainLoad < trainCars){
         if(trackLoad > 2 && !tracksLoaded){
             setTracks();
+            setPeeps(numPeeps);
+            initCams();
             setTrain(3);
             tracksLoaded = true;
-            origin.z = engineSize.z/2;
+            origin.z = 10;
             trainGp.add(cam);
-            cam.rotation.y = 3*Math.PI/4;
+            camRot = 3/2 * Math.PI;
+            moveCam2();
         }
     }else{
         moveTrain();
+        if(stop){
+            for(let i = 0; i < trainMixers.length; i++){
+                trainMixers[i].update((Date.now() - prevTime)/1000);
+            }
+        }
     }
+
+    for(let j = 0; j < peepMixers.length; j++){
+        peepMixers[j].update((Date.now() - prevTime)/1000);
+    }
+
     moveCam();
     sky.rotation.y += skyRot;
-    let speedOm = (trainGp.position.z - lastZ) / ((Date.now() - prevTime)/1000) * (18/5);
+    dTime = (Date.now() - prevTime)/1000;
+    let speedOm = (trainGp.position.z - lastZ) / dTime * (18/5);
+    //brake.innerText = (speedOm / accel * dTime / (18/5)).toPrecision(2);
     prevTime = Date.now();
     lastZ = trainGp.position.z;
     spdHud.innerText = `${Math.abs(speedOm).toPrecision(3)} km/hr`;
@@ -164,6 +209,15 @@ window.addEventListener('keydown', (k)=>{
     }
     if((k.key == 'ArrowDown' || k.key == 's') && Math.abs(input[1]) < maxInput){
         input[1] -= 1;
+    }
+    if(k.key == '0'){
+        interestCam = camS0;
+    }
+    if(k.key == '1'){
+        interestCam = camS1;
+    }
+    if(k.key == '2'){
+        interestCam = cam;
     }
 });
 
@@ -227,9 +281,12 @@ window.addEventListener('touchstart',(e)=>{
 
 window.addEventListener('mousemove',(e)=>{
     if(mouseDown){
-        //cam.rotation.y += e.movementX * spd;
         camRot += e.movementX*spd;
-        moveCam2();
+        if(interestCam == cam){
+            moveCam2();
+        }else{
+            moveCam3();
+        }
     }
 });
 
@@ -237,8 +294,9 @@ window.addEventListener('touchmove',(e)=>{
     e.preventDefault();
     if(mouseDown){
         //cenText.innerText = `${e.touches[0].clientX},${touchX-e.touches[0].clientX}`;
-        cam.rotation.y += (touchX-Number(e.touches[0].clientX)) * spd;
         touchX = e.touches[0].clientX;
+        camRot += e.movementX*spd;
+        moveCam2();
     }
 });
 
@@ -252,11 +310,7 @@ function moveTrain(){
             }else{
                 approach = false;
                 stop = true;
-                idle = window.setTimeout(()=>{
-                    switchDir();
-                    stop = false;
-                    clearTimeout(idle);
-                },idleTime*1000);
+                openDoors();
             }
         }else{
             checkApproach();
@@ -269,6 +323,13 @@ function moveTrain(){
             trainGp.position.z += trainSpd;
         }else{
             trainGp.position.z -= trainSpd;
+        }
+    }else{
+        if(ready){
+            ready = false;
+            console.log('lfg');
+            switchDir();
+            stop = false;
         }
     }
     //cenText.innerText = trainGp.position.z;
@@ -330,6 +391,10 @@ function moveCam2(){
     //console.log(origin);
 }
 
+function moveCam3(){
+    interestCam.rotation.y = camRot;
+}
+
 function initSizes(){
     gLoader.load(track,function(o){
         new THREE.Box3().setFromObject(o.scene).getSize(trackSize);
@@ -347,28 +412,43 @@ function initSizes(){
 
 function setPlatforms(){
     
-    const platform = new THREE.Mesh(new THREE.BoxGeometry(10,5,20),new THREE.MeshLambertMaterial({color: 0xaaaaaa}));
-    let pSize = new THREE.Vector3();
-    new THREE.Box3().setFromObject(platform).getSize(pSize);
-    const platform2 = new THREE.Mesh(new THREE.BoxGeometry(10,5,20),new THREE.MeshLambertMaterial({color: 0xaaaaaa}));
+    gLoader.load(station,(o)=>{
+        const platform = o.scene;
+        const platform2 = new THREE.Object3D().copy(platform);
+        pSize = new THREE.Vector3();
+        new THREE.Box3().setFromObject(platform).getSize(pSize);
 
+        platform.position.z = stageDim/2 - 3*pSize.z;
+        platform.position.y = stationYoff;
+        platform.rotation.y = Math.PI;
+        platform.position.x = (pSize.x/2 + trackSize.x/2);
+
+        platform2.position.z = -(stageDim/2 - 2.5*pSize.z);
+        platform2.position.y = stationYoff;
+        platform2.position.x = -(pSize.x/2 + trackSize.x/2);
+
+        console.log(platform2.position);
+
+        scene.add(platform);
+        scene.add(platform2);
+        platforms.push(platform);
+        platforms.push(platform2);
+    });
+    //const platform = new THREE.Mesh(new THREE.BoxGeometry(10,5,20),new THREE.MeshLambertMaterial({color: 0xaaaaaa}));
     //console.log('psize: ' + pSize.z);
-    platform.position.z = stageDim/2 - 3*pSize.z;
-    platform.position.y = pSize.y/2;
-    platform.position.x = pSize.x;
-
     //console.log(platform.position);
+}
 
-    platform2.position.z = -(stageDim/2 - 2.5*pSize.z);
-    platform2.position.y = pSize.y/2;
-    platform2.position.x = -pSize.x;
+function initCams(){
+    camS0.position.x = -platforms[0].position.x;
+    camS0.position.y = pSize.y;
+    camS0.position.z = platforms[0].position.z + pSize.z/2;
+    camS0.lookAt(platforms[0].position);
 
-    console.log(platform2.position);
-
-    scene.add(platform);
-    scene.add(platform2);
-    platforms.push(platform);
-    platforms.push(platform2);
+    camS1.position.x = -platforms[1].position.x;
+    camS1.position.y = pSize.y;
+    camS1.position.z = platforms[1].position.z - pSize.z/2;
+    camS1.lookAt(platforms[1].position);
 }
 
 function setTracks(){
@@ -390,16 +470,22 @@ function setTrain(n){
     gLoader.load(trainHead,function(o){
         let obj = o.scene;
         obj.position.x = xTrack;
-        obj.position.z = 0;
+        obj.position.y = trackSize.y/2 + engineSize.y/2 + engineOffset;
+        obj.position.z = distOffset;
         trainGp.add(obj);
         train.push(obj);
         trainLoad++;
-    });
+    }); 
     for(let i = 0; i < n; i++){
         gLoader.load(trainCar,function(o){
             let obj = o.scene;
             obj.position.x = xTrack;
-            obj.position.z = engineSize.z + carSize.z * i;
+            obj.position.y = trackSize.y/2 + carSize.y/2 + passOffset;
+            obj.position.z = engineSize.z + carSize.z * i - distOffset;
+            trainMixers.push(new THREE.AnimationMixer(obj));
+            if(!doorOpenClip){
+                doorOpenClip = o.animations[0];
+            }
             trainGp.add(obj);
             train.push(obj);
             trainLoad++;
@@ -408,7 +494,8 @@ function setTrain(n){
     gLoader.load(trainHead,function(o){
         let obj = o.scene;
         obj.position.x = xTrack;
-        obj.position.z = engineSize.z + carSize.z * n;
+        obj.position.y = trackSize.y/2 + engineSize.y/2 + engineOffset;
+        obj.position.z = engineSize.z + carSize.z * n - 2 * distOffset;
         obj.rotation.y = Math.PI;
         trainGp.add(obj);
         train.push(obj);
@@ -417,41 +504,72 @@ function setTrain(n){
     });
 }
 
-function setDecoration(ob,n,scale,yOff=0.5){
+function setPeeps(n){
     for(let i = 0; i < n; i++){
-        gLoader.load(ob,function(o){
+        gLoader.load(alien,function(o){
             const obj = o.scene;
-            obj.scale.x = scale[0];
-            obj.scale.y = scale[1];
-            obj.scale.z = scale[2];
-            obj.rotation.y = Math.random() * 2 * Math.PI;
-            obj.position.x = Math.random() * (stageDim/2-1) + 0.5;
-            if(Math.round(Math.random()) < 1){
-                obj.position.x = -obj.position.x;
+            if(!peepClip){
+                peepClip = o.animations[0];
             }
-            obj.position.z = Math.random() * (stageDim/2-1) + 0.5;
-            if(Math.round(Math.random()) < 1){
-                obj.position.z = -obj.position.z;
-            }
-            const size = new THREE.Vector3();
-            new THREE.Box3().setFromObject(obj).getSize(size);
-            obj.position.y = ground.position.y + size.y*yOff;
-            if(!sceneryCollide(obj,size.x/2)){
-                scene.add(obj);
-                scenery.push(obj);
-            }
-            loadProg++;
-        },undefined,(e)=>{console.error(e);});
+            peepPlace(obj);
+            let mixer = new THREE.AnimationMixer(obj);
+            let action = mixer.clipAction(peepClip);
+            action.time = Math.random();
+            action.play();
+            peepMixers.push(mixer);
+            peeps.push(obj);
+            scene.add(obj);
+        });
     }
 }
 
-function sceneryCollide(o,t){
-    for(let i = 0; i < scenery.length; i++){
-        if(dist(o,scenery[i]) < t){
-            return true;
+function peepPlace(p){
+    let station = Math.round(Math.random());
+    let randX = Math.random() * (pSize.x - stationXoff - stationXoff2);
+    let randZ = Math.random() * (pSize.z - stationZoff);
+    if(station == 0){
+        p.position.x = platforms[station].position.x - (pSize.x - stationXoff)/2 + randX + stationXoff;
+        p.position.z = platforms[station].position.z - (pSize.z - stationZoff)/2 + randZ + stationZoff;
+        p.position.y = statY;
+        p.rotation.y = Math.PI;
+    }else{
+        p.position.x = platforms[station].position.x + (pSize.x - stationXoff)/2 - randX - stationXoff;
+        p.position.z = platforms[station].position.z + (pSize.z - stationZoff)/2 - randZ - stationZoff;
+        p.position.y = statY;
+    }
+}
+
+function openDoors(){
+    let oTime = 1;
+    for(let d = 0; d < trainMixers.length; d++){
+        let action = trainMixers[d].clipAction(doorOpenClip);
+        if(!doorsOpen){
+            action.setLoop(THREE.LoopOnce);
+            action.clampWhenFinished = true;
+            action.setDuration(oTime);
+            action.paused = false;
+            action.play();
+        }else{
+            action.setLoop(THREE.LoopOnce);
+            action.clampWhenFinished = true;
+            action.setDuration(-oTime);
+            action.paused = false;
+            action.play();
         }
     }
-    return false;
+    if(doorsOpen){
+        doorsOpen = false;
+        setTimeout(()=>{
+            ready = true;
+            clearTimeout(idle);
+        },oTime*1000);
+    }else{
+        doorsOpen = true;
+        idle = setTimeout(()=>{
+            openDoors();
+            clearTimeout(idle);
+        },idleTime*1000);
+    }
 }
 
 function fadeIn(a,t,v){

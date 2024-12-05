@@ -36,3 +36,11 @@ body{
     font-size: 42px;
     width: fit-content;
 }
+
+#brake{
+    left:2%;
+    top:75%;
+    text-align: left;
+    font-size: 42px;
+    width: fit-content;
+}
