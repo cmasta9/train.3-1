@@ -418,7 +418,7 @@ function setPlatforms(){
         pSize = new THREE.Vector3();
         new THREE.Box3().setFromObject(platform).getSize(pSize);
 
-        platform.position.z = stageDim/2 - 3*pSize.z;
+        platform.position.z = stageDim/2 - 2.5*pSize.z;
         platform.position.y = stationYoff;
         platform.rotation.y = Math.PI;
         platform.position.x = (pSize.x/2 + trackSize.x/2);
