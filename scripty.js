@@ -9,6 +9,8 @@ const trainHead = './graphics/engine2.glb';
 const trainCar = './graphics/passengercar2.glb';
 const track = './graphics/tracks.glb';
 const station = './graphics/station.glb';
+const building = './graphics/building.glb';
+const windmill = './graphics/windmill.glb';
 const alien = './graphics/alienBeing.glb';
 
 const music = document.createElement("AUDIO");
@@ -49,6 +51,7 @@ let engineSize = new THREE.Vector3();
 let carSize = new THREE.Vector3();
 let trackSize = new THREE.Vector3();
 let pSize = new THREE.Vector3();
+let windSize = undefined;
 let trackLoad = 0;
 let trainLoad = 0;
 const trainCars = 3;
@@ -89,6 +92,7 @@ const peeps = [];
 const peepMixers = [];
 const passengers = [];
 const placeHolders = [];
+const scenery = [];
 
 let person = undefined;
 let persRot = 0;
@@ -124,9 +128,15 @@ scene.add(ground);
 scene.add(light);
 scene.add(ambLight);
 scene.add(sky);
-//scene.fog = new THREE.Fog(0xaaaaaa,0.2,stageDim-6);
+scene.fog = new THREE.Fog(0xffffff,0.2,stageDim-6);
+
+let skylineVar = 16;
+let buildingNum = 29;
+let windmillNum = 20;
 
 let loadingComp = false;
+let buildingsLoad = 0;
+let windmillsLoad = 0;
 let platLoad = false;
 let peepLoad = false;
 let camLoad = false;
@@ -218,6 +228,12 @@ function loadLoop(){
             trainGp.add(cam);
             camRot = 3/2 * Math.PI;
             moveCam2();
+        }else if(!buildingsLoad){
+            loadBuildings();
+            buildingsLoad = true;
+        }else if(!windmillsLoad){
+            loadWindmills();
+            windmillsLoad = true;
         }else if(platLoad && !camLoad){
             initCams();
         }else if(platLoad && !peepLoad){
@@ -544,6 +560,81 @@ function stationHold(s,Xoff,Zoff){
 
     placeHolders.push(p);
     scene.add(p);
+}
+
+function loadBuildings(){
+    let xRat = 0.3;
+    let zRat = 0.8;
+
+    let mult1 = 1.4; 
+    let mult2 = 1.8;
+
+    for(let i = 1; i <= buildingNum + buildingNum/mult1 + buildingNum/mult2; i++){
+        gLoader.load(building,function(o){
+            let obj = o.scene;
+
+            if(i < buildingNum/2){
+                obj.position.x = stageDim/2*xRat;
+                obj.position.y = ground.position.y - Math.round(Math.random()*skylineVar);
+                obj.position.z = (stageDim/buildingNum * i * Math.pow(-1,i))*zRat;
+            }else if(i < buildingNum){
+                obj.position.x = -stageDim/2*xRat;
+                obj.position.y = ground.position.y - Math.round(Math.random()*skylineVar);
+                obj.position.z = (stageDim/buildingNum * (i-buildingNum/2) * Math.pow(-1,i))*zRat;
+            }else if(i < buildingNum + buildingNum/mult1/2){
+                obj.position.x = stageDim/2*xRat*mult1;
+                obj.position.y = ground.position.y - Math.round(Math.random()*skylineVar);
+                obj.position.z = stageDim/buildingNum/mult1 * (i-buildingNum+1) * Math.pow(-1,i);
+            }else if(i < buildingNum + buildingNum/mult1){
+                obj.position.x = -stageDim/2*xRat*mult1;
+                obj.position.y = ground.position.y - Math.round(Math.random()*skylineVar);
+                obj.position.z = stageDim/buildingNum/mult1 * (i-buildingNum-buildingNum/mult1/2) * Math.pow(-1,i);
+            }else if(i < buildingNum + buildingNum/mult1 + buildingNum/mult2/2){
+                obj.position.x = stageDim/2*xRat*mult2;
+                obj.position.y = ground.position.y - Math.round(Math.random()*skylineVar);
+                obj.position.z = stageDim/buildingNum/mult2 * (i-buildingNum-buildingNum/mult1) * Math.pow(-1,i);
+            }else if(i < buildingNum + buildingNum/mult1 + buildingNum/mult2){
+                obj.position.x = -stageDim/2*xRat*mult2;
+                obj.position.y = ground.position.y - Math.round(Math.random()*skylineVar);
+                obj.position.z = stageDim/buildingNum/mult2 * (i-buildingNum-buildingNum/mult1-buildingNum/mult2/2) * Math.pow(-1,i);
+            }
+
+            scenery.push(obj);
+            scene.add(obj);
+            buildingsLoad++;
+        });
+    }
+}
+
+function loadWindmills(){
+    let xRat = 0.1;
+    let zRat = 0.8;
+    for(let i = 0; i < windmillNum; i++){
+        gLoader.load(windmill,function(o){
+            let obj = o.scene;
+            if(!windSize){
+                windSize = new THREE.Vector3();
+                new THREE.Box3().setFromObject(obj).getSize(windSize);
+            }
+            obj.position.x = stageDim/2*xRat*Math.pow(-1,i+1);
+            obj.position.y = windSize.y/2;
+            obj.position.z = (-stageDim/2 + stageDim*(i/windmillNum))*zRat;
+
+            if(i % 2 == 1){
+                obj.rotation.y = Math.PI;
+            }
+
+            let mixer = new THREE.AnimationMixer(obj);
+            let action = mixer.clipAction(o.animations[0]);
+            action.time = Math.random();
+            action.play();
+
+            scenery.push(obj);
+            scene.add(obj);
+            peepMixers.push(mixer);
+            windmillsLoad++;
+        });
+    }
 }
 
 function initCams(){
