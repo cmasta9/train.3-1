@@ -304,10 +304,12 @@ window.addEventListener('keydown', (k)=>{
             initStationCams();
         }
         if(interestCam == camA){
-            camA.position.x = 0;
-            camA.position.y = camDist;
-            camA.position.z = 0;
-            camA.lookAt(plane);
+            interestCam.position.x = 0;
+            interestCam.position.y = camDist;
+            interestCam.position.z = 0;
+            interestCam.rotation.y = 0;
+            interestCam.rotation.x = -Math.PI/2;
+            interestCam.rotation.z = 0;
         }
         if(interestCam == cam){
             moveCam2();
