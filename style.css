@@ -22,25 +22,18 @@ body{
     text-shadow: 2px 2px #000000;
 }
 
-#center{
-    left:36%;
-    top:40%;
-    text-align: center;
-    font-size: 69px;
-}
-
 #speed{
     left:2%;
-    top:90%;
+    top:85%;
     text-align: left;
     font-size: 42px;
     width: fit-content;
 }
 
-#brake{
+#cam{
     left:2%;
     top:75%;
     text-align: left;
-    font-size: 42px;
+    font-size: 36px;
     width: fit-content;
 }

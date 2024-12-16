@@ -15,3 +15,16 @@ export function dist(i,f){
 export function dirTo(i,f){
     return new Vector3(f.x-i.x,f.y-i.y,f.z-i.z).divideScalar(dist(i,f));
 }
+
+export function halfwayPt(i,f){
+    return new Vector3(f.x-i.x,f.y-i.y,f.z-f.i).divideScalar(2);
+}
+
+export function progress(i,f,curr){
+    return 1-(dist(curr,f)/dist(i,f));
+}
+
+export function pointOnLine(i,f,prog){
+    let dir = new Vector3(f.x-i.x,f.y-i.y,f.z-i.z);
+    return new Vector3(i.x + dir.x*prog, i.y + dir.y*prog, i.z + dir.z*prog);
+}

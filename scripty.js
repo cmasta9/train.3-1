@@ -1,7 +1,7 @@
 import * as THREE from 'three';
 import {GLTFLoader} from 'three/addons/loaders/GLTFLoader.js';
 import {Passenger} from './passenger.js';
-import {dirTo, dist,near} from './loc.js';
+import {dirTo, dist,pointOnLine,progress} from './loc.js';
 
 const bgImg = './graphics/blueSky2.jpg';
 const groundTex = './graphics/grass.jpg';
@@ -11,6 +11,7 @@ const track = './graphics/tracks.glb';
 const station = './graphics/station.glb';
 const building = './graphics/building.glb';
 const windmill = './graphics/windmill.glb';
+const airship = './graphics/airship1.glb';
 const alien = './graphics/alienBeing.glb';
 
 const music = document.createElement("AUDIO");
@@ -20,10 +21,8 @@ music.muted = true;
 
 let start = false;
 
-const cenText = document.getElementById('center');
 const spdHud = document.getElementById('speed');
-const brake = document.getElementById('brake');
-//cenText.innerText = 'LOADING...';
+const camHud = document.getElementById('cam');
 
 const stageDim = 1000;
 const scene = new THREE.Scene();
@@ -31,6 +30,7 @@ const cam = new THREE.PerspectiveCamera(90,window.innerWidth/window.innerHeight,
 const camS0 = new THREE.PerspectiveCamera(90,window.innerWidth/window.innerHeight,0.1,stageDim);
 const camS1 = new THREE.PerspectiveCamera(90,window.innerWidth/window.innerHeight,0.1,stageDim);
 const camP = new THREE.PerspectiveCamera(90,window.innerWidth/window.innerHeight,0.1,stageDim);
+const camA = new THREE.PerspectiveCamera(90,window.innerWidth/window.innerHeight,0.1,stageDim);
 const tLoader = new THREE.TextureLoader();
 const gLoader = new GLTFLoader();
 const bgTex = tLoader.load(bgImg);
@@ -57,6 +57,7 @@ let trainLoad = 0;
 const trainCars = 3;
 let tracksLoaded = false;
 
+let doorsOpen = false;
 let doorOpenClip = undefined;
 
 let engineOffset = -0.85;
@@ -76,9 +77,6 @@ let mouseDown = false;
 const doubleTapThresh = 0.42;
 let tapCounter = undefined;
 let touchX = undefined;
-let touchXlast = undefined;
-
-let doorsOpen = false;
 
 const maxInput = 10;
 let input = [0,0];
@@ -94,6 +92,8 @@ const passengers = [];
 const placeHolders = [];
 const scenery = [];
 
+let plane = new THREE.Object3D();
+
 let person = undefined;
 let persRot = 0;
 let perSize = new THREE.Vector3();
@@ -106,6 +106,7 @@ let prevTime = Date.now();
 let lastZ = 0;
 let spd = 0.02;
 let perSpd = 0.1;
+let planeSpd = 0.42;
 let maxSpd = 1.5;
 let trainSpd = 0.5;
 let accel = 0.016;
@@ -128,20 +129,23 @@ scene.add(ground);
 scene.add(light);
 scene.add(ambLight);
 scene.add(sky);
-scene.fog = new THREE.Fog(0xffffff,0.2,stageDim-6);
+scene.fog = new THREE.Fog(0xffffff,0.1,stageDim-6);
 
 let skylineVar = 16;
 let buildingNum = 29;
 let windmillNum = 20;
+
+let planeHeight = 200;
 
 let loadingComp = false;
 let buildingsLoad = 0;
 let windmillsLoad = 0;
 let platLoad = false;
 let peepLoad = false;
+let airshipLoad = false;
 let camLoad = false;
 
-const placeMesh = new THREE.Mesh(new THREE.BoxGeometry(10,10,10),new THREE.MeshBasicMaterial({color:0xffffff}));
+//const placeMesh = new THREE.Mesh(new THREE.BoxGeometry(10,10,10),new THREE.MeshBasicMaterial({color:0xffffff}));
 
 let camRot = Math.PI/2;
 let camDist = 30;
@@ -160,6 +164,8 @@ initSizes();
 setPlatforms();
 const origin = new THREE.Vector3(0,camHeight,0);
 const porigin = new THREE.Vector3(origin.x-camDist,origin.y,origin.z);
+let atarget = 0;
+const apos = [new THREE.Vector3(0,planeHeight,planeHeight),new THREE.Vector3(-planeHeight,planeHeight,planeHeight/2),new THREE.Vector3(-planeHeight,planeHeight,-planeHeight/2),new THREE.Vector3(0,planeHeight,-planeHeight), new THREE.Vector3(planeHeight,planeHeight,-planeHeight/2), new THREE.Vector3(planeHeight,planeHeight,planeHeight/2)];
 cam.position.x = origin.x + camDist;
 cam.position.y = origin.y;
 cam.position.z = origin.z;
@@ -208,6 +214,7 @@ function anim(){
     }
 
     moveCam();
+    movePlane();
     sky.rotation.y += skyRot;
     dTime = (Date.now() - prevTime)/1000;
     let speedOm = (trainGp.position.z - lastZ) / dTime * (18/5);
@@ -234,8 +241,12 @@ function loadLoop(){
         }else if(!windmillsLoad){
             loadWindmills();
             windmillsLoad = true;
-        }else if(platLoad && !camLoad){
+        }else if(!airshipLoad){
+            loadAirship();
+            airshipLoad = true;
+        }else if(platLoad && airshipLoad && !camLoad){
             initCams();
+            camHud.innerText = 'Camera: Train';
         }else if(platLoad && !peepLoad){
             setPeeps(numPeeps);
         }else{
@@ -266,23 +277,41 @@ window.addEventListener('keydown', (k)=>{
     }
     if(k.key == '0'){
         interestCam = camS0;
+        camHud.innerText = 'Camera: Station 1';
     }
     if(k.key == '1'){
         interestCam = camS1;
+        camHud.innerText = 'Camera: Station 2';
     }
     if(k.key == '2'){
         interestCam = cam;
+        camHud.innerText = 'Camera: Train';
     }
     if(k.key == '3'){
         interestCam = camP;
+        camHud.innerText = 'Camera: Watcher';
+    }
+    if(k.key == '4'){
+        interestCam = camA;
+        camHud.innerText = 'Camera: Air';
     }
     if(k.key == 'r'){
         origin.x = 0;
         origin.y = camHeight;
         origin.z = 0;
         camDist = 30;
-        initStationCams();
-        moveCam2();
+        if(interestCam == camS0 || interestCam == camS1){
+            initStationCams();
+        }
+        if(interestCam == camA){
+            camA.position.x = 0;
+            camA.position.y = camDist;
+            camA.position.z = 0;
+            camA.lookAt(plane);
+        }
+        if(interestCam == cam){
+            moveCam2();
+        }
     }
 });
 
@@ -299,12 +328,6 @@ window.addEventListener('keyup',(k)=>{
 window.addEventListener('mousedown',(e)=>{
     e.preventDefault();
     mouseDown = true;
-});
-
-window.addEventListener('touchstart',(e)=>{
-    e.preventDefault();
-    mouseDown = true;
-    touchX = e.touches[0].clientX;
 });
 
 window.addEventListener('mouseup',()=>{
@@ -332,6 +355,8 @@ window.addEventListener('click',(e)=>{
 
 window.addEventListener('touchstart',(e)=>{
     e.preventDefault();
+    mouseDown = true;
+    touchX = e.touches[0].clientX;
     if(tapCounter){
         doubleTap();
         clearTimeout(tapCounter);
@@ -364,7 +389,7 @@ window.addEventListener('touchmove',(e)=>{
     let dx = e.touches[0].clientX-touchX;
     if(mouseDown){
         if(interestCam == cam){
-            camRot += dx*spd;
+            camRot += dx*spd/5;
             moveCam2();
         }else if (interestCam == camP){
             persRot += dx*spd;
@@ -453,6 +478,8 @@ function moveCam(){
     if(input[1] != 0){
         if(interestCam == camP){
             moveCamP();
+        }else if(interestCam == camA){
+            moveCamA();
         }else{
             camDist += spd * input[1];
             moveCam2();
@@ -493,6 +520,35 @@ function moveCamP(){
     }
     if(person.position.y > ground.position.y + perSize.y/2){
         person.position.y -= perSpd;
+    }
+}
+
+function moveCamA(){
+    if(input[1] != 0){
+        camA.position.y += input[1]*spd;
+    }
+}
+
+function movePlane(){
+    if (dist(plane.position,apos[atarget]) >= planeSpd){
+        let dir = dirTo(plane.position,apos[atarget]);
+        plane.position.x += dir.x * planeSpd;
+        plane.position.z += dir.z * planeSpd;
+        if(atarget >= apos.length - 1){
+            plane.lookAt(pointOnLine(apos[atarget],apos[0],progress(apos[atarget-1],apos[atarget],plane.position)));
+            //console.log(progress(apos[atarget-1],apos[atarget],plane.position));
+        }else if (atarget > 0){
+            plane.lookAt(pointOnLine(apos[atarget],apos[atarget+1],progress(apos[atarget-1],apos[atarget],plane.position)));
+            //console.log(progress(apos[atarget-1],apos[atarget],plane.position))
+        }else{
+            plane.lookAt(pointOnLine(apos[atarget],apos[atarget+1],progress(apos[apos.length-1],apos[atarget],plane.position)));
+            //console.log(progress(apos[apos.length-1],apos[atarget],plane.position));
+        }
+    }else{
+        atarget++;
+        if(atarget >= apos.length){
+            atarget = 0;
+        }
     }
 }
 
@@ -544,9 +600,6 @@ function setPlatforms(){
         platforms.push(platform2);
         platLoad = true;
     });
-    //const platform = new THREE.Mesh(new THREE.BoxGeometry(10,5,20),new THREE.MeshLambertMaterial({color: 0xaaaaaa}));
-    //console.log('psize: ' + pSize.z);
-    //console.log(platform.position);
 }
 
 function stationHold(s,Xoff,Zoff){
@@ -564,10 +617,10 @@ function stationHold(s,Xoff,Zoff){
 
 function loadBuildings(){
     let xRat = 0.3;
-    let zRat = 0.8;
+    let zRat = 0.9;
 
-    let mult1 = 1.4; 
-    let mult2 = 1.8;
+    let mult1 = 1.6; 
+    let mult2 = 2.2;
 
     for(let i = 1; i <= buildingNum + buildingNum/mult1 + buildingNum/mult2; i++){
         gLoader.load(building,function(o){
@@ -592,11 +645,11 @@ function loadBuildings(){
             }else if(i < buildingNum + buildingNum/mult1 + buildingNum/mult2/2){
                 obj.position.x = stageDim/2*xRat*mult2;
                 obj.position.y = ground.position.y - Math.round(Math.random()*skylineVar);
-                obj.position.z = stageDim/buildingNum/mult2 * (i-buildingNum-buildingNum/mult1) * Math.pow(-1,i);
+                obj.position.z = stageDim/buildingNum/mult1 * (i-buildingNum-buildingNum/mult1) * Math.pow(-1,i);
             }else if(i < buildingNum + buildingNum/mult1 + buildingNum/mult2){
                 obj.position.x = -stageDim/2*xRat*mult2;
                 obj.position.y = ground.position.y - Math.round(Math.random()*skylineVar);
-                obj.position.z = stageDim/buildingNum/mult2 * (i-buildingNum-buildingNum/mult1-buildingNum/mult2/2) * Math.pow(-1,i);
+                obj.position.z = stageDim/buildingNum/mult1 * (i-buildingNum-buildingNum/mult1-buildingNum/mult2/2) * Math.pow(-1,i);
             }
 
             scenery.push(obj);
@@ -637,6 +690,18 @@ function loadWindmills(){
     }
 }
 
+function loadAirship(){
+    gLoader.load(airship,function(o){
+        let obj = o.scene;
+        obj.position.x = apos[atarget].x;
+        obj.position.y = apos[atarget].y;
+        obj.position.z = apos[atarget].z;
+
+        plane.copy(obj);
+        scene.add(plane);
+    });
+}
+
 function initCams(){
     
     initStationCams()
@@ -646,6 +711,11 @@ function initCams(){
     camP.rotation.y = -Math.PI/2;
 
     person.add(camP);
+
+    camA.position.copy(new THREE.Vector3(0,camDist,0));
+    camA.rotation.x = -Math.PI/2;
+    plane.add(camA);
+
     camLoad = true;
 }
 
