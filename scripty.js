@@ -12,6 +12,8 @@ const station = './graphics/station.glb';
 const building = './graphics/building.glb';
 const windmill = './graphics/windmill.glb';
 const airship = './graphics/airship1.glb';
+const powerplant = './graphics/powerplant.glb';
+const sstack = './graphics/powerstack.glb';
 const alien = './graphics/alienBeing.glb';
 
 const music = document.createElement("AUDIO");
@@ -51,6 +53,8 @@ let engineSize = new THREE.Vector3();
 let carSize = new THREE.Vector3();
 let trackSize = new THREE.Vector3();
 let pSize = new THREE.Vector3();
+let powerSize = new THREE.Vector3();
+let stackSize = new THREE.Vector3();
 let windSize = undefined;
 let trackLoad = 0;
 let trainLoad = 0;
@@ -93,6 +97,8 @@ const placeHolders = [];
 const scenery = [];
 
 let plane = new THREE.Object3D();
+let powerPlant = new THREE.Object3D();
+let powerStack = new THREE.Object3D();
 
 let person = undefined;
 let persRot = 0;
@@ -143,6 +149,7 @@ let windmillsLoad = 0;
 let platLoad = false;
 let peepLoad = false;
 let airshipLoad = false;
+let powerLoad = false;
 let camLoad = false;
 
 //const placeMesh = new THREE.Mesh(new THREE.BoxGeometry(10,10,10),new THREE.MeshBasicMaterial({color:0xffffff}));
@@ -241,6 +248,9 @@ function loadLoop(){
         }else if(!windmillsLoad){
             loadWindmills();
             windmillsLoad = true;
+        }else if(!powerLoad){
+            loadPower();
+            powerLoad = true;
         }else if(!airshipLoad){
             loadAirship();
             airshipLoad = true;
@@ -617,12 +627,37 @@ function stationHold(s,Xoff,Zoff){
     scene.add(p);
 }
 
+function loadPower(){
+    let xLoc = 400;
+    let stackOffz = 100;
+
+    gLoader.load(powerplant,function(o){
+        powerPlant = o.scene;
+        new THREE.Box3().setFromObject(powerPlant).getSize(powerSize);
+        powerPlant.position.x = xLoc;
+        powerPlant.position.y = ground.position.y;
+        powerPlant.rotation.y = -Math.PI/2
+
+        scene.add(powerPlant);
+    });
+
+    gLoader.load(sstack,function(o){
+        powerStack = o.scene;
+        new THREE.Box3().setFromObject(powerStack).getSize(stackSize);
+        powerStack.position.x = xLoc;
+        powerStack.position.y = ground.position.y;
+        powerStack.position.z = stackOffz;
+
+        scene.add(powerStack);
+    });
+}
+
 function loadBuildings(){
     let xRat = 0.3;
     let zRat = 0.9;
 
     let mult1 = 1.6; 
-    let mult2 = 2.2;
+    let mult2 = 2.1;
 
     for(let i = 1; i <= buildingNum + buildingNum/mult1 + buildingNum/mult2; i++){
         gLoader.load(building,function(o){
@@ -1047,12 +1082,7 @@ function fadeOut(a,t,v){
 }
 
 window.addEventListener('resize',()=>{
-    if(window.innerHeight > window.innerWidth/ratio){
-        rend.setSize(window.innerHeight*ratio,window.innerHeight);
-    }
-    else if(window.innerWidth < window.innerHeight*ratio){
-        rend.setSize(window.innerWidth,window.innerWidth/ratio);
-    }else{
-        rend.setSize(window.innerWidth,window.innerHeight);
-    }
+    interestCam.aspect = window.innerWidth/window.innerHeight;
+    interestCam.updateProjectionMatrix();
+    rend.setSize(window.innerWidth,window.innerHeight);
 });
