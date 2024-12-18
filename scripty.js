@@ -95,10 +95,14 @@ const peepMixers = [];
 const passengers = [];
 const placeHolders = [];
 const scenery = [];
+const smoke = [];
 
 let plane = new THREE.Object3D();
 let powerPlant = new THREE.Object3D();
 let powerStack = new THREE.Object3D();
+
+let smokeShape = new THREE.SphereGeometry(16,3,2);
+let smokeMat = new THREE.MeshLambertMaterial({color: 0xeeeeee});
 
 let person = undefined;
 let persRot = 0;
@@ -649,6 +653,12 @@ function loadPower(){
         powerStack.position.z = stackOffz;
 
         scene.add(powerStack);
+        window.setInterval(()=>{
+            smokeStack();
+        },1000);
+        window.setInterval(()=>{
+            smokeRise();
+        },50);
     });
 }
 
@@ -1049,36 +1059,28 @@ function readyPass(){
     return unready;
 }
 
-function fadeIn(a,t,v){
-    a.volume = 0;
-    a.play();
-    a.muted = false;
-    const fade = setInterval(()=>{
-        if(a.volume >= v){
-            clearInterval(fade);
-        }else{
-            try{
-                a.volume += v/10;
-            }catch{
-                a.volume = 1;
-            }
-        }
-    },t/10*1000);
+function smokeStack(){
+    let xzVar = 4;
+    if(powerLoad){
+        let part = new THREE.Mesh(smokeShape,smokeMat);
+        part.position.x = powerStack.position.x - xzVar + 2*Math.random()*xzVar;
+        part.position.z = powerStack.position.z - xzVar + 2*Math.random()*xzVar;
+        part.position.y = 10;
+        scene.add(part);
+        smoke.push(part);
+    }
 }
 
-function fadeOut(a,t,v){
-    const diff = a.volume - v;
-    const fade = setInterval(()=>{
-        if(a.volume <= v || start){
-            clearInterval(fade);
-        }else{
-            try{
-                a.volume -= diff/10;
-            }catch{
-                a.volume = 0;
-            }
+function smokeRise(){
+    let smokeSpd = 0.96;
+    let maxHeight = 300;
+    for(let p = 0; p < smoke.length; p++){
+        smoke[p].position.y += smokeSpd;
+        if(smoke[p].position.y > maxHeight){
+            scene.remove(smoke[p]);
+            smoke.splice(p,1);
         }
-    },t/10*1000);
+    }
 }
 
 window.addEventListener('resize',()=>{
