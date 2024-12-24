@@ -33,6 +33,7 @@ const camS0 = new THREE.PerspectiveCamera(90,window.innerWidth/window.innerHeigh
 const camS1 = new THREE.PerspectiveCamera(90,window.innerWidth/window.innerHeight,0.1,stageDim);
 const camP = new THREE.PerspectiveCamera(90,window.innerWidth/window.innerHeight,0.1,stageDim);
 const camA = new THREE.PerspectiveCamera(90,window.innerWidth/window.innerHeight,0.1,stageDim);
+const camA2 = new THREE.PerspectiveCamera(90,window.innerWidth/window.innerHeight,0.1,stageDim);
 const tLoader = new THREE.TextureLoader();
 const gLoader = new GLTFLoader();
 const bgTex = tLoader.load(bgImg);
@@ -114,14 +115,26 @@ let peepClip = undefined;
 let dTime = 0;
 let prevTime = Date.now();
 let lastZ = 0;
+
 let spd = 0.02;
 let perSpd = 0.1;
+
 let planeSpd = 0.42;
-let maxSpd = 1.5;
+const planeSpdBase = planeSpd;
+const planeMaxSpd = 5;
+let planeAccel = 0.05;
+let boosting = false;
+let axisThresh = 0.02;
+let planeFore = new THREE.Vector3();
+let planeRt = new THREE.Vector3();
+let planeUp = new THREE.Vector3();
+
+const maxSpd = 1.5;
 let trainSpd = 0.5;
 let accel = 0.016;
 let driftSpd = 0.001;
 let driftHei = 0.042;
+
 let skyRot = 0.001;
 
 const planeG = new THREE.PlaneGeometry(stageDim,stageDim);
@@ -309,6 +322,10 @@ window.addEventListener('keydown', (k)=>{
         interestCam = camA;
         camHud.innerText = 'Camera: Air';
     }
+    if(k.key == '5'){
+        interestCam = camA2;
+        camHud.innerText = 'Camera: Airship';
+    }
     if(k.key == 'r'){
         origin.x = 0;
         origin.y = camHeight;
@@ -329,6 +346,9 @@ window.addEventListener('keydown', (k)=>{
             moveCam2();
         }
     }
+    if(k.key == 'b'){
+        boosting = true;
+    }
 });
 
 window.addEventListener('keyup',(k)=>{
@@ -338,6 +358,9 @@ window.addEventListener('keyup',(k)=>{
     }
     if(k.key == 'ArrowUp' || k.key == 'ArrowDown' || k.key == 'w' || k.key == 's'){
         input[1] = 0;
+    }
+    if(k.key == 'b'){
+        boosting = false;
     }
 });
 
@@ -410,6 +433,8 @@ window.addEventListener('touchmove',(e)=>{
         }else if (interestCam == camP){
             persRot += dx*spd;
             moveCamP();
+        }else if (interestCam == camA2){
+
         }else{
             camRot += dx*spd;
             moveCam3();
@@ -496,6 +521,8 @@ function moveCam(){
             moveCamP();
         }else if(interestCam == camA){
             moveCamA();
+        }else if(interestCam == camA2){
+            moveCamA2();
         }else{
             camDist += spd * input[1];
             moveCam2();
@@ -504,6 +531,8 @@ function moveCam(){
     if(input[0] != 0){
         if(interestCam == camP){
             moveCamP();
+        }else if(interestCam == camA2){
+            moveCamA2();
         }else{
             origin.z += spd * input[0];
             moveCam2();
@@ -545,25 +574,71 @@ function moveCamA(){
     }
 }
 
-function movePlane(){
-    if (dist(plane.position,apos[atarget]) >= planeSpd){
-        let dir = dirTo(plane.position,apos[atarget]);
-        plane.position.x += dir.x * planeSpd;
-        plane.position.z += dir.z * planeSpd;
-        if(atarget >= apos.length - 1){
-            plane.lookAt(pointOnLine(apos[atarget],apos[0],progress(apos[atarget-1],apos[atarget],plane.position)));
-            //console.log(progress(apos[atarget-1],apos[atarget],plane.position));
-        }else if (atarget > 0){
-            plane.lookAt(pointOnLine(apos[atarget],apos[atarget+1],progress(apos[atarget-1],apos[atarget],plane.position)));
-            //console.log(progress(apos[atarget-1],apos[atarget],plane.position))
+function moveCamA2(){
+    plane.children[0].getWorldPosition(planeUp);
+    plane.getWorldDirection(planeFore);
+    planeRt.crossVectors(planeFore,dirTo(plane.position,planeUp));
+    if(input[1] != 0){
+        if(input[1] > 0){
+            if(planeFore.dot(new THREE.Vector3(0,1,0)) > -0.9){
+                plane.rotateOnWorldAxis(planeRt,-spd*input[1]);
+            }
         }else{
-            plane.lookAt(pointOnLine(apos[atarget],apos[atarget+1],progress(apos[apos.length-1],apos[atarget],plane.position)));
-            //console.log(progress(apos[apos.length-1],apos[atarget],plane.position));
+            if(planeFore.dot(new THREE.Vector3(0,1,0)) < 0.9){
+                plane.rotateOnWorldAxis(planeRt,-spd*input[1]);
+            }
+        }
+    }
+    if(input[0] != 0){
+        plane.rotateOnWorldAxis(dirTo(plane.position,planeUp),-spd*input[0]);
+    }
+    if(Math.abs(planeRt.dot(new THREE.Vector3(0,1,0))) > axisThresh){
+        console.log(planeRt.dot(new THREE.Vector3(0,1,0)));
+        plane.rotateOnWorldAxis(planeFore,planeRt.dot(new THREE.Vector3(0,1,0)));
+    }
+    camA2.lookAt(plane.position);
+}
+
+function movePlane(){
+    if(interestCam != camA2){
+        if (dist(plane.position,apos[atarget]) >= planeSpd){
+            let dir = dirTo(plane.position,apos[atarget]);
+            plane.position.x += dir.x * planeSpd;
+            plane.position.z += dir.z * planeSpd;
+            plane.position.y += dir.y * planeSpd;
+            if(atarget >= apos.length - 1){
+                plane.lookAt(pointOnLine(apos[atarget],apos[0],progress(apos[atarget-1],apos[atarget],plane.position)));
+                //console.log(progress(apos[atarget-1],apos[atarget],plane.position));
+            }else if (atarget > 0){
+                plane.lookAt(pointOnLine(apos[atarget],apos[atarget+1],progress(apos[atarget-1],apos[atarget],plane.position)));
+                //console.log(progress(apos[atarget-1],apos[atarget],plane.position))
+            }else{
+                plane.lookAt(pointOnLine(apos[atarget],apos[atarget+1],progress(apos[apos.length-1],apos[atarget],plane.position)));
+                //console.log(progress(apos[apos.length-1],apos[atarget],plane.position));
+            }
+        }else{
+            atarget++;
+            if(atarget >= apos.length){
+                atarget = 0;
+            }
         }
     }else{
-        atarget++;
-        if(atarget >= apos.length){
-            atarget = 0;
+        let targ = new THREE.Vector3();
+        plane.getWorldDirection(targ);
+        plane.position.x += targ.x * planeSpd;
+        plane.position.y += targ.y * planeSpd;
+        plane.position.z += targ.z * planeSpd;
+    }
+
+    if(boosting){
+        if(planeSpd < planeMaxSpd){
+            planeSpd += planeAccel;
+        }else{
+            planeSpd = planeMaxSpd;
+        }
+    }else{
+        if(planeSpd > planeSpdBase){
+            planeSpd -= planeAccel;
         }
     }
 }
@@ -745,6 +820,10 @@ function loadAirship(){
         obj.position.z = apos[atarget].z;
 
         plane.copy(obj);
+
+        let up = new THREE.Object3D();
+        up.position.copy(new THREE.Vector3(0,1,0));
+        plane.add(up);
         scene.add(plane);
     });
 }
@@ -762,6 +841,8 @@ function initCams(){
     camA.position.copy(new THREE.Vector3(0,camDist,0));
     camA.rotation.x = -Math.PI/2;
     plane.add(camA);
+    camA2.position.copy(new THREE.Vector3(0,0,-camDist));
+    plane.add(camA2);
 
     camLoad = true;
 }
@@ -779,14 +860,14 @@ function initStationCams(){
 }
 
 function setTracks(){
-    let tracksTot = Math.ceil(stageDim*2/trackSize.z);
+    let tracksTot = Math.ceil(stageDim/trackSize.z);
     console.log('tracks: ' + tracksTot);
-    for(let i = 0; i < tracksTot; i++){
+    for(let i = 0; i <= tracksTot; i++){
         gLoader.load(track,function(o){
             let t = o.scene;
             t.position.y = ground.position.y;
             t.position.x = xTrack;
-            t.position.z = -(stageDim + trackSize.z/2) + i * trackSize.z;
+            t.position.z = -(stageDim + trackSize.z)/2 + i * trackSize.z;
             scene.add(t);
             tracks.push(t);
         });
