@@ -2,9 +2,11 @@ import * as THREE from 'three';
 import {GLTFLoader} from 'three/addons/loaders/GLTFLoader.js';
 import {Passenger} from './passenger.js';
 import {dirTo, dist,pointOnLine,progress} from './loc.js';
+import {moveJet,moveJetCam,jetSpd} from './jetMove.js';
+import { animLoop } from './scripty2.js';
 
 const bgImg = './graphics/blueSky2.jpg';
-const groundTex = './graphics/grass.jpg';
+const groundTex = './graphics/grass2.jpg';
 const trainHead = './graphics/engine2.glb';
 const trainCar = './graphics/passengercar2.glb';
 const track = './graphics/tracks.glb';
@@ -15,6 +17,7 @@ const airship = './graphics/airship1.glb';
 const powerplant = './graphics/powerplant.glb';
 const sstack = './graphics/powerstack.glb';
 const alien = './graphics/alienBeing.glb';
+const alienEye = './graphics/alienEye.glb';
 
 const music = document.createElement("AUDIO");
 music.loop = true;
@@ -124,10 +127,6 @@ const planeSpdBase = planeSpd;
 const planeMaxSpd = 5;
 let planeAccel = 0.05;
 let boosting = false;
-let axisThresh = 0.02;
-let planeFore = new THREE.Vector3();
-let planeRt = new THREE.Vector3();
-let planeUp = new THREE.Vector3();
 
 const maxSpd = 1.5;
 let trainSpd = 0.5;
@@ -183,6 +182,8 @@ let approach = false;
 let stop = false;
 let idle = undefined;
 let ready = false;
+
+let scene2 = false;
 
 initSizes();
 setPlatforms();
@@ -248,6 +249,10 @@ function anim(){
     spdHud.innerText = `${Math.abs(speedOm).toPrecision(3)} km/hr`;
 }
 
+function animJet(){
+    animLoop(rend,input,boosting);
+}
+
 function loadLoop(){
     if(trackLoad > 2){
         if(trainLoad < trainCars){
@@ -288,6 +293,8 @@ function doubleTap(){
     console.log('logged a doubleTap');
 }
 
+let cooldown = undefined;
+
 window.addEventListener('keydown', (k)=>{
     //console.log(`${k.key} down`);
     if((k.key == 'ArrowRight' || k.key == 'd') && Math.abs(input[0]) < maxInput){
@@ -304,27 +311,27 @@ window.addEventListener('keydown', (k)=>{
     }
     if(k.key == '0'){
         interestCam = camS0;
-        camHud.innerText = 'Camera: Station 1';
+        camHud.innerText = setCamText();
     }
     if(k.key == '1'){
         interestCam = camS1;
-        camHud.innerText = 'Camera: Station 2';
+        camHud.innerText = setCamText();
     }
     if(k.key == '2'){
         interestCam = cam;
-        camHud.innerText = 'Camera: Train';
+        camHud.innerText = setCamText();
     }
     if(k.key == '3'){
         interestCam = camP;
-        camHud.innerText = 'Camera: Watcher';
+        camHud.innerText = setCamText();
     }
     if(k.key == '4'){
         interestCam = camA;
-        camHud.innerText = 'Camera: Air';
+        camHud.innerText = setCamText();
     }
     if(k.key == '5'){
         interestCam = camA2;
-        camHud.innerText = 'Camera: Airship';
+        camHud.innerText = setCamText();
     }
     if(k.key == 'r'){
         origin.x = 0;
@@ -345,9 +352,26 @@ window.addEventListener('keydown', (k)=>{
         if(interestCam == cam){
             moveCam2();
         }
+        camHud.innerText = setCamText();
     }
     if(k.key == 'b'){
         boosting = true;
+    }
+    if(k.key == 'p'){
+        if(!cooldown){
+            if(scene2){
+                rend.setAnimationLoop(anim);
+                scene2 = false;
+            }else{
+                rend.setAnimationLoop(animJet);
+                scene2 = true;
+            }
+            cooldown = setTimeout(()=>{
+                console.log('switch out'); 
+                cooldown = undefined;  
+            },1000);
+            camHud.innerText = setCamText();
+        }
     }
 });
 
@@ -363,6 +387,24 @@ window.addEventListener('keyup',(k)=>{
         boosting = false;
     }
 });
+
+function setCamText(){
+    if(interestCam == camS0){
+        return 'Camera: Station 1';
+    }else if(interestCam == camS1){
+        return 'Camera: Station 2';
+    }else if(interestCam == cam){
+        return 'Camera: Train';
+    }else if(interestCam == camP){
+        return 'Camera: Watcher';
+    }else if(interestCam == camA){
+        return 'Camera: Air';
+    }else if(interestCam == camA2){
+        return 'Camera: Jet';
+    }else{
+        return '';
+    }
+}
 
 window.addEventListener('mousedown',(e)=>{
     e.preventDefault();
@@ -522,7 +564,7 @@ function moveCam(){
         }else if(interestCam == camA){
             moveCamA();
         }else if(interestCam == camA2){
-            moveCamA2();
+            moveJetCam(plane,camA2,spd,input);
         }else{
             camDist += spd * input[1];
             moveCam2();
@@ -532,7 +574,7 @@ function moveCam(){
         if(interestCam == camP){
             moveCamP();
         }else if(interestCam == camA2){
-            moveCamA2();
+            moveJetCam(plane,camA2,spd,input);
         }else{
             origin.z += spd * input[0];
             moveCam2();
@@ -574,31 +616,6 @@ function moveCamA(){
     }
 }
 
-function moveCamA2(){
-    plane.children[0].getWorldPosition(planeUp);
-    plane.getWorldDirection(planeFore);
-    planeRt.crossVectors(planeFore,dirTo(plane.position,planeUp));
-    if(input[1] != 0){
-        if(input[1] > 0){
-            if(planeFore.dot(new THREE.Vector3(0,1,0)) > -0.9){
-                plane.rotateOnWorldAxis(planeRt,-spd*input[1]);
-            }
-        }else{
-            if(planeFore.dot(new THREE.Vector3(0,1,0)) < 0.9){
-                plane.rotateOnWorldAxis(planeRt,-spd*input[1]);
-            }
-        }
-    }
-    if(input[0] != 0){
-        plane.rotateOnWorldAxis(dirTo(plane.position,planeUp),-spd*input[0]);
-    }
-    if(Math.abs(planeRt.dot(new THREE.Vector3(0,1,0))) > axisThresh){
-        console.log(planeRt.dot(new THREE.Vector3(0,1,0)));
-        plane.rotateOnWorldAxis(planeFore,planeRt.dot(new THREE.Vector3(0,1,0)));
-    }
-    camA2.lookAt(plane.position);
-}
-
 function movePlane(){
     if(interestCam != camA2){
         if (dist(plane.position,apos[atarget]) >= planeSpd){
@@ -623,24 +640,9 @@ function movePlane(){
             }
         }
     }else{
-        let targ = new THREE.Vector3();
-        plane.getWorldDirection(targ);
-        plane.position.x += targ.x * planeSpd;
-        plane.position.y += targ.y * planeSpd;
-        plane.position.z += targ.z * planeSpd;
+        moveJet(plane,planeSpd);
     }
-
-    if(boosting){
-        if(planeSpd < planeMaxSpd){
-            planeSpd += planeAccel;
-        }else{
-            planeSpd = planeMaxSpd;
-        }
-    }else{
-        if(planeSpd > planeSpdBase){
-            planeSpd -= planeAccel;
-        }
-    }
+    planeSpd = jetSpd(planeSpd,planeMaxSpd,planeSpdBase,planeAccel,boosting);
 }
 
 function initSizes(){
