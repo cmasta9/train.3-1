@@ -6,7 +6,7 @@ import {moveJet2,moveJetCam2,jetSpd} from './jetMove.js';
 const spdHUD = document.getElementById('speed');
 const camHUD = document.getElementById('cam');
 
-const bg = './graphics/galaxyLoop.png';
+const bg = './graphics/galaxyJ.jpg';
 const ship = './graphics/airship1.glb';
 const eyeB = './graphics/alienEye.glb';
 let jet = new THREE.Object3D();
