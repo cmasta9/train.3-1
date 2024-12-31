@@ -100,7 +100,7 @@ export function animLoop(rend,inp,b){
     }else{
         addEnemies();
         moveJet2(jet,spd,[groundSize.x,stageHei]);
-        moveJetCam2(jet,cam,climbSpd,turnSpd,inp,groundSize.x,0);
+        moveJetCam2(jet,cam,climbSpd,turnSpd,inp,groundSize.x,1);
         spd = jetSpd(spd,jetSpdMax,jetSpdBase,accel,b);
         for(let m = 0; m < mixers.length; m++){
             mixers[m].update((Date.now()-prevTime)/1000);
