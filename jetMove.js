@@ -73,8 +73,6 @@ export function moveJetCam(p,c,turnSpd,inp,child=0){
 }
 
 export function moveJetCam2(p,c,climbSpd,turnSpd,inp,xBound,child=0){
-    console.log('up ' + up.x,up.y,up.z);
-    console.log(`child ${child}: ${p.children[child]}`);
     p.children[child].getWorldPosition(up);
     p.getWorldDirection(fore);
     rt.crossVectors(fore,dirTo(p.position,up));
