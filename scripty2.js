@@ -11,6 +11,7 @@ const ship = './graphics/airship1.glb';
 const eyeB = './graphics/alienEye.glb';
 let jet = new THREE.Object3D();
 let jetload = false;
+let go = false;
 
 let drawDist = 500;
 
@@ -72,6 +73,7 @@ function load(){
 
         jet.add(cam);
         console.log('loaded jet in scene2');
+        go = true;
     });
 
     gLoader.load(eyeB,function(o){
@@ -99,11 +101,13 @@ export function animLoop(rend,inp,b){
         jetload = true;
     }else{
         addEnemies();
-        moveJet2(jet,spd,[groundSize.x,stageHei]);
-        moveJetCam2(jet,cam,climbSpd,turnSpd,inp,groundSize.x,1);
-        spd = jetSpd(spd,jetSpdMax,jetSpdBase,accel,b);
-        for(let m = 0; m < mixers.length; m++){
-            mixers[m].update((Date.now()-prevTime)/1000);
+        if(go){
+            moveJet2(jet,spd,[groundSize.x,stageHei]);
+            moveJetCam2(jet,cam,climbSpd,turnSpd,inp,groundSize.x,1);
+            spd = jetSpd(spd,jetSpdMax,jetSpdBase,accel,b);
+            for(let m = 0; m < mixers.length; m++){
+                mixers[m].update((Date.now()-prevTime)/1000);
+            }
         }
         prevTime = Date.now();
         spdHUD.innerText = '';
