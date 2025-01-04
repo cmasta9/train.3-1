@@ -37,3 +37,11 @@ body{
     font-size: 36px;
     width: fit-content;
 }
+
+#hitCt{
+    right: 10%;
+    top: 75%;
+    text-align: left;
+    font-size: 36px;
+    width: fit-content;
+}

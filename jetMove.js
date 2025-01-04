@@ -4,7 +4,7 @@ import {dirTo} from './loc.js';
 let thresh = 0.02;
 let maxInc = 0.9;
 let maxInc2 = 0.5;
-let fore = new Vector3();
+export let fore = new Vector3();
 let up = new Vector3();
 let rt = new Vector3();
 

@@ -3,7 +3,7 @@ import {GLTFLoader} from 'three/addons/loaders/GLTFLoader.js';
 import {Passenger} from './passenger.js';
 import {dirTo, dist,pointOnLine,progress} from './loc.js';
 import {moveJet,moveJetCam,jetSpd} from './jetMove.js';
-import { animLoop } from './scripty2.js';
+import {animLoop,drawHits,drawHP} from './scripty2.js';
 
 const bgImg = './graphics/blueSky2.jpg';
 const groundTex = './graphics/grass2.jpg';
@@ -28,6 +28,7 @@ let start = false;
 
 const spdHud = document.getElementById('speed');
 const camHud = document.getElementById('cam');
+const hitHUD = document.getElementById('hitCt');
 
 const stageDim = 1000;
 const scene = new THREE.Scene();
@@ -361,13 +362,15 @@ window.addEventListener('keydown', (k)=>{
         if(!cooldown){
             if(scene2){
                 rend.setAnimationLoop(anim);
+                hitHUD.innerText = '';
                 scene2 = false;
             }else{
                 rend.setAnimationLoop(animJet);
+                drawHits();
+                drawHP();
                 scene2 = true;
             }
             cooldown = setTimeout(()=>{
-                console.log('switch out'); 
                 cooldown = undefined;  
             },1000);
             camHud.innerText = setCamText();
@@ -402,6 +405,9 @@ function setCamText(){
     }else if(interestCam == camA2){
         return 'Camera: Jet';
     }else{
+        if(scene2){
+            return 'Camera: Space';
+        }
         return '';
     }
 }
