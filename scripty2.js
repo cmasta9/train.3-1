@@ -2,10 +2,13 @@ import * as THREE from 'three';
 import {GLTFLoader} from 'three/addons/loaders/GLTFLoader.js';
 import {dirTo,dist,pointOnLine,progress} from './loc.js';
 import {moveJet2,moveJetCam2,jetSpd,fore} from './jetMove.js';
+import {Hostile} from './hostile.js';
 
 const spdHUD = document.getElementById('speed');
 const camHUD = document.getElementById('cam');
 const hitHUD = document.getElementById('hitCt');
+
+const aud = document.createElement("AUDIO");
 
 const bg = './graphics/galaxyJ.jpg';
 const ship = './graphics/airship1.glb';
@@ -58,13 +61,17 @@ const bullets = [];
 
 const initColors = [];
 
-let eyenemy = new THREE.Object3D();
+let enemeyeSpdInit = 0.02;
+let eyenemy = new Hostile(1,enemeyeSpdInit,1);
 let eyenemyClip = undefined;
 let eyenemySize = new THREE.Vector3();
 let eyenemyScale = 3;
 
 let rockDensity = 300;
 let enemyDensity = 50;
+
+let rockInt = undefined;
+let enemInt = undefined;
 
 const scene = new THREE.Scene();
 scene.background = bgTex;
@@ -112,13 +119,7 @@ function load(){
 
     drawHits(hits);
 
-    setInterval(()=>{
-        loopRocks();
-    },4000);
-
-    setInterval(()=>{
-        removeEnemies();
-    },4000);
+    setIntervals();
 }
 
 export function animLoop(rend,inp,b){
@@ -134,6 +135,7 @@ export function animLoop(rend,inp,b){
             for(let m = 0; m < mixers.length; m++){
                 mixers[m].update((Date.now()-prevTime)/1000);
             }
+            moveEnemies(enemies,jet.position);
         }
         moveBullets();
         enemyCollision(enemies,jetSize.z/2);
@@ -180,15 +182,8 @@ function moveBullets(){
 function bulletCollision(b,ens,r){
     for(let e = 0; e < ens.length; e++){
         if(dist(b.position,ens[e].position) <= r){
-            splode(b.position);
-            hits++;
-            drawHits(hits);
-            console.log(hits);
-            let splen = ens[e];
-            ens.splice(e,1);
-            setTimeout(()=>{
-                scene.remove(splen);
-            },300);
+            splode(b.position,10);
+            damageEnemy(1,ens,e);
             return e;
         }
     }
@@ -206,17 +201,24 @@ function enemyCollision(ens,r){
                     death();
                 }
             }
-            splode(ens[e].position);
-            hits++;
-            drawHits(hits);
-            console.log(hits);
-            let splen = ens[e];
-            ens.splice(e,1);
-            setTimeout(()=>{
-                scene.remove(splen);
-            },300);
+            damageEnemy(2,ens,e);
             return e;
         }
+    }
+}
+
+function damageEnemy(pow,ens,e){
+    ens[e].hp -= pow;
+    console.log(ens[e].hp);
+    if(ens[e].hp <= 0){
+        splode(ens[e].position,20);
+        hits++;
+        drawHits(hits);
+        let splen = ens[e];
+        ens.splice(e,1);
+        setTimeout(()=>{
+            scene.remove(splen);
+        },300);
     }
 }
 
@@ -281,7 +283,7 @@ function addEnemies(){
                 let yPos = Math.random()*stageHei;
                 let xPos = Math.random()*planeX - planeX/2;
                 
-                let enemeye = new THREE.Object3D();
+                let enemeye = new Hostile(1,enemeyeSpdInit,1,120);
                 enemeye.copy(eyenemy);
                 enemeye.scale.copy(new THREE.Vector3(eyenemyScale,eyenemyScale,eyenemyScale));
                 enemeye.position.copy(new THREE.Vector3(xPos,yPos,zPos));
@@ -297,14 +299,30 @@ function addEnemies(){
     }
 }
 
-function removeEnemies(){
-    for(let e = 0; e < enemies.length; e++){
-        if(enemies[e].position.z < jet.position.z - camDist){
-            scene.remove(enemies[e]);
-            enemies.splice(e,1);
+function moveEnemies(ens,t=jet.position){
+    for(let e = 0; e < ens.length; e++){
+        if(dist(ens[e].position,t) < ens[e].sight){
+            let dis = dirTo(ens[e].position,t);
+            ens[e].position.x += dis.x * ens[e].spd;
+            ens[e].position.y += dis.y * ens[e].spd;
+            ens[e].position.z += dis.z * ens[e].spd;
+            ens[e].lookAt(t);
         }
     }
-    console.log('enemies: ' + enemies.length);
+}
+
+function removeEnemies(){
+    if(camHUD.innerText == 'Camera: Space'){
+        for(let e = 0; e < enemies.length; e++){
+            if(enemies[e].position.z < jet.position.z - camDist){
+                scene.remove(enemies[e]);
+                enemies.splice(e,1);
+            }
+        }
+        console.log('enemies: ' + enemies.length);
+    }else{
+        clearInterval(enemInt);
+    }
 }
 
 export function drawHP(){
@@ -331,25 +349,37 @@ function initRocks(d){
 }
 
 function loopRocks(){
-    for(let r = 0; r < rocks.length; r++){
-        if(rocks[r].position.z < jet.position.z - camDist){
+    if(camHUD.innerText == 'Camera: Space'){
+        for(let r = 0; r < rocks.length; r++){
+            if(rocks[r].position.z < jet.position.z - camDist){
             rocks[r].position.z += planeZ;
+            }
         }
+    }else{
+        clearInterval(rockInt);
     }
 }
 
 function removeRocks(){
     for(let r = 0; r < rocks.length; r++){
         scene.remove(rocks.pop());
-
     }
 }
 
 function removeAllEnemies(){
     for(let e = 0; e < enemies.length; e++){
         scene.remove(enemies.pop());
-
     }
+}
+
+export function setIntervals(){
+    rockInt = setInterval(()=>{
+        loopRocks();
+    },4000);
+
+    enemInt = setInterval(()=>{
+        removeEnemies();
+    },4000);
 }
 
 function reset(){

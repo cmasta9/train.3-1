@@ -3,7 +3,7 @@ import {GLTFLoader} from 'three/addons/loaders/GLTFLoader.js';
 import {Passenger} from './passenger.js';
 import {dirTo, dist,pointOnLine,progress} from './loc.js';
 import {moveJet,moveJetCam,jetSpd} from './jetMove.js';
-import {animLoop,drawHits,drawHP} from './scripty2.js';
+import {animLoop,drawHits,drawHP,setIntervals} from './scripty2.js';
 
 const bgImg = './graphics/blueSky2.jpg';
 const groundTex = './graphics/grass2.jpg';
@@ -17,7 +17,6 @@ const airship = './graphics/airship1.glb';
 const powerplant = './graphics/powerplant.glb';
 const sstack = './graphics/powerstack.glb';
 const alien = './graphics/alienBeing.glb';
-const alienEye = './graphics/alienEye.glb';
 
 const music = document.createElement("AUDIO");
 music.loop = true;
@@ -97,7 +96,6 @@ const platforms = [];
 const trainMixers = [];
 const peeps = [];
 const peepMixers = [];
-const passengers = [];
 const placeHolders = [];
 const scenery = [];
 const smoke = [];
@@ -222,9 +220,9 @@ function anim(){
 
     if(stop){
         for(let j = 0; j < peeps.length; j++){
-            if(passengers[j].destiny && !passengers[j].boarded){
-                if(dist(peeps[j].position,passengers[j].destiny) > perSpd){
-                    let dis = dirTo(peeps[j].position,passengers[j].destiny);
+            if(peeps[j].destiny && !peeps[j].boarded){
+                if(dist(peeps[j].position,peeps[j].destiny) > perSpd){
+                    let dis = dirTo(peeps[j].position,peeps[j].destiny);
                     peeps[j].position.x += dis.x * perSpd;
                     peeps[j].position.y += dis.y * perSpd;
                     peeps[j].position.z += dis.z * perSpd;
@@ -233,8 +231,8 @@ function anim(){
         }
     }else{
         for(let j = 0; j < peeps.length; j++){
-            if(passengers[j].boarded){
-                peeps[j].position.z = trainGp.position.z + passengers[j].offset;
+            if(peeps[j].boarded){
+                peeps[j].position.z = trainGp.position.z + peeps[j].offset;
             }
         }
     }
@@ -368,6 +366,7 @@ window.addEventListener('keydown', (k)=>{
                 rend.setAnimationLoop(animJet);
                 drawHits();
                 drawHP();
+                setIntervals();
                 scene2 = true;
             }
             cooldown = setTimeout(()=>{
@@ -934,11 +933,29 @@ function setPeeps(n){
             action.time = Math.random();
             action.play();
             peepMixers.push(mixer);
-            peeps.push(obj);
-            scene.add(obj);
         });
     }
     peepLoad = true;
+}
+
+function peepPlace(p){
+    let station = Math.round(Math.random());
+    let randX = Math.random() * (pSize.x - stationXoff - stationXoff2);
+    let randZ = Math.random() * (pSize.z - 2*stationZoff);
+    if(station == 0){
+        p.position.x = platforms[station].position.x - (pSize.x - stationXoff2)/2 + randX + stationXoff;
+        p.position.z = platforms[station].position.z - pSize.z/2 + randZ + stationZoff;
+        p.position.y = statY;
+        p.rotation.y = Math.PI;
+    }else{
+        p.position.x = platforms[station].position.x + (pSize.x - stationXoff2)/2 - randX - stationXoff;
+        p.position.z = platforms[station].position.z + pSize.z/2 - randZ - stationZoff;
+        p.position.y = statY;
+    }
+    let peep = new Passenger('anon',p.position);
+    peep.copy(p);
+    peeps.push(peep);
+    scene.add(peep);
 }
 
 function setPers(pos){
@@ -960,23 +977,6 @@ function setPers(pos){
         person = obj;
         scene.add(obj);
     });
-}
-
-function peepPlace(p){
-    let station = Math.round(Math.random());
-    let randX = Math.random() * (pSize.x - stationXoff - stationXoff2);
-    let randZ = Math.random() * (pSize.z - 2*stationZoff);
-    if(station == 0){
-        p.position.x = platforms[station].position.x - (pSize.x - stationXoff2)/2 + randX + stationXoff;
-        p.position.z = platforms[station].position.z - pSize.z/2 + randZ + stationZoff;
-        p.position.y = statY;
-        p.rotation.y = Math.PI;
-    }else{
-        p.position.x = platforms[station].position.x + (pSize.x - stationXoff2)/2 - randX - stationXoff;
-        p.position.z = platforms[station].position.z + pSize.z/2 - randZ - stationZoff;
-        p.position.y = statY;
-    }
-    passengers.push(new Passenger('anon',p.position));
 }
 
 function openDoors(){
@@ -1016,12 +1016,12 @@ function closeDoors(){
 function unboarding(){
     let boarded = 0;
     for(let p = 0; p < peeps.length; p++){
-        if(passengers[p].boarded){
+        if(peeps[p].boarded){
             boarded++;
             let closest = getClosestHold(peeps[p].position);
-            passengers[p].boarded = false;
-            passengers[p].destiny = placeHolders[closest].position;
-            passengers[p].board = -2;
+            peeps[p].boarded = false;
+            peeps[p].destiny = placeHolders[closest].position;
+            peeps[p].board = -2;
         }
     }
 
@@ -1063,9 +1063,9 @@ function getBoardCar(d){
 
 function unboarding2(){
     for(let p = 0; p < peeps.length; p++){
-        if(passengers[p].board == -2){
-            passengers[p].destiny = toStation(peeps[p].position);
-            passengers[p].board = -1;
+        if(peeps[p].board == -2){
+            peeps[p].destiny = toStation(peeps[p].position);
+            peeps[p].board = -1;
             peeps[p].rotation.y += Math.PI;
         }
     }
@@ -1092,13 +1092,13 @@ function boarding(){
     for(let p = 0; p < peeps.length; p++){
         if(dist(peeps[p].position, trainGp.position) < stageDim/2){
             //peeps[p].lookAt(trainGp.position);
-            let dec = passengers[p].decideRand(placeHolders.length);
+            let dec = peeps[p].decideRand(placeHolders.length);
             if(dist(peeps[p].position,placeHolders[dec].position)<stageDim/2){
-                passengers[p].destiny = placeHolders[dec].position;
-                passengers[p].board = getBoardCar(dec);
+                peeps[p].destiny = placeHolders[dec].position;
+                peeps[p].board = getBoardCar(dec);
             }else{
-                passengers[p].destiny = undefined;
-                passengers[p].board = -1;
+                peeps[p].destiny = undefined;
+                peeps[p].board = -1;
             }
         }
     }
@@ -1114,19 +1114,19 @@ function boarding(){
 
 function boardTrain(){
     console.log('boarding...');
-    for(let p = 0; p < passengers.length; p++){
-        if(passengers[p].board > -1){
-            passengers[p].destiny = new THREE.Vector3(trainGp.position.x,carSize.y/2-carOffIn,trainGp.position.z + engineSize.z + carSize.z*passengers[p].board);
+    for(let p = 0; p < peeps.length; p++){
+        if(peeps[p].board > -1){
+            peeps[p].destiny = new THREE.Vector3(trainGp.position.x,carSize.y/2-carOffIn,trainGp.position.z + engineSize.z + carSize.z*peeps[p].board);
             //console.log(passengers[p].board,passengers[p].destiny);
         }
     }
     let boarder = setInterval(()=>{
         if(readyPass() == 0){
-            for(let p = 0; p < passengers.length; p++){
-                if(passengers[p].board > -1 && !passengers[p].boarded){
+            for(let p = 0; p < peeps.length; p++){
+                if(peeps[p].board > -1 && !peeps[p].boarded){
                     //peeps[p].position.z = engineSize.z + carSize.z*passengers[p].board;
-                    passengers[p].boarded = true;
-                    passengers[p].offset = peeps[p].position.z - trainGp.position.z;
+                    peeps[p].boarded = true;
+                    peeps[p].offset = peeps[p].position.z - trainGp.position.z;
                     //trainGp.add(peeps[p]);
                 }
             }
@@ -1141,7 +1141,7 @@ function boardTrain(){
 function readyPass(){
     let unready = 0;
     for(let i = 0; i < peeps.length; i++){
-        if(!passengers[i].boarded && passengers[i].destiny && dist(peeps[i].position,passengers[i].destiny) > perSpd){
+        if(!peeps[i].boarded && peeps[i].destiny && dist(peeps[i].position,peeps[i].destiny) > perSpd){
             unready++;
         }
     }

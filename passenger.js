@@ -1,5 +1,8 @@
-export class Passenger{
+import { Object3D } from "three";
+
+export class Passenger extends Object3D{
     constructor(name='anon',destiny=undefined,board=-1,money=100,boarded=false,offset=undefined){
+        super();
         this.name = name;
         this.destiny = destiny;
         this.board = board;
