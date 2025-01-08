@@ -18,10 +18,12 @@ const powerplant = './graphics/powerplant.glb';
 const sstack = './graphics/powerstack.glb';
 const alien = './graphics/alienBeing.glb';
 
+/*
 const music = document.createElement("AUDIO");
 music.loop = true;
 music.muted = true;
-//music.src = bgMusic;
+music.src = bgMusic;
+*/
 
 let start = false;
 
@@ -60,13 +62,9 @@ let pSize = new THREE.Vector3();
 let powerSize = new THREE.Vector3();
 let stackSize = new THREE.Vector3();
 let windSize = undefined;
-let trackLoad = 0;
-let trainLoad = 0;
 const trainCars = 3;
-let tracksLoaded = false;
 
 let doorsOpen = false;
-let doorOpenClip = undefined;
 
 let engineOffset = -0.85;
 let passOffset = -0.1;
@@ -86,7 +84,7 @@ const doubleTapThresh = 0.42;
 let tapCounter = undefined;
 let touchX = undefined;
 
-const maxInput = 10;
+const maxInput = 1;
 let input = [0,0];
 
 //const scenery = [];
@@ -100,6 +98,16 @@ const placeHolders = [];
 const scenery = [];
 const smoke = [];
 
+let engineObj = new THREE.Object3D();
+let traincarObj = new THREE.Object3D();
+let trackObj = new THREE.Object3D();
+let buildingObj = new THREE.Object3D();
+let windmillObj = new THREE.Object3D();
+let peepObj = new THREE.Object3D();
+let doorOpenClip = undefined;
+let peepClip = undefined;
+let windmillClip = undefined;
+
 let plane = new THREE.Object3D();
 let powerPlant = new THREE.Object3D();
 let powerStack = new THREE.Object3D();
@@ -112,14 +120,13 @@ let persRot = 0;
 let perSize = new THREE.Vector3();
 
 let numPeeps = 10;
-let peepClip = undefined;
 
 let dTime = 0;
 let prevTime = Date.now();
 let lastZ = 0;
 
-let spd = 0.02;
-let perSpd = 0.1;
+let spd = 0.05;
+let perSpd = 0.5;
 
 let planeSpd = 0.42;
 const planeSpdBase = planeSpd;
@@ -159,13 +166,7 @@ let windmillNum = 20;
 let planeHeight = 200;
 
 let loadingComp = false;
-let buildingsLoad = 0;
-let windmillsLoad = 0;
-let platLoad = false;
-let peepLoad = false;
-let airshipLoad = false;
-let powerLoad = false;
-let camLoad = false;
+let loadProg = 0;
 
 //const placeMesh = new THREE.Mesh(new THREE.BoxGeometry(10,10,10),new THREE.MeshBasicMaterial({color:0xffffff}));
 
@@ -182,10 +183,8 @@ let stop = false;
 let idle = undefined;
 let ready = false;
 
+loadModels();
 let scene2 = false;
-
-initSizes();
-setPlatforms();
 const origin = new THREE.Vector3(0,camHeight,0);
 const porigin = new THREE.Vector3(origin.x-camDist,origin.y,origin.z);
 let atarget = 0;
@@ -194,7 +193,6 @@ cam.position.x = origin.x + camDist;
 cam.position.y = origin.y;
 cam.position.z = origin.z;
 const trainGp = new THREE.Object3D();
-setPers(porigin);
 
 //---------------------------- GAME LOOP -----------------------------//
 
@@ -252,39 +250,62 @@ function animJet(){
     animLoop(rend,input,boosting);
 }
 
+function loadModels(){
+    
+    gLoader.load(trainHead,function(o){
+        engineObj = o.scene;
+        new THREE.Box3().setFromObject(engineObj).getSize(engineSize);
+        loadProg++;
+    });
+    gLoader.load(trainCar,function(o){
+        traincarObj = o.scene;
+        doorOpenClip = o.animations[0];
+        new THREE.Box3().setFromObject(traincarObj).getSize(carSize);
+        loadProg++;
+    });
+    gLoader.load(track,function(o){
+        trackObj = o.scene;
+        new THREE.Box3().setFromObject(trackObj).getSize(trackSize);
+        loadProg++;
+    });
+
+    setPlatforms();
+
+    gLoader.load(alien,function(o){
+        peepObj = o.scene;
+        peepClip = o.animations[0];
+        loadProg++;
+    });
+    gLoader.load(building,function(o){
+        buildingObj = o.scene;
+        loadProg++;
+    });
+    gLoader.load(windmill,function(o){
+        windmillObj = o.scene;
+        windmillClip = o.animations[0];
+        loadProg++;
+    });
+}
+
 function loadLoop(){
-    if(trackLoad > 2){
-        if(trainLoad < trainCars){
-            setTrain(3);
-        }else if(!tracksLoaded){
-            setTracks();
-            tracksLoaded = true;
-            origin.z = 10;
-            trainGp.add(cam);
-            camRot = 3/2 * Math.PI;
-            moveCam2();
-        }else if(!buildingsLoad){
-            loadBuildings();
-            buildingsLoad = true;
-        }else if(!windmillsLoad){
-            loadWindmills();
-            windmillsLoad = true;
-        }else if(!powerLoad){
-            loadPower();
-            powerLoad = true;
-        }else if(!airshipLoad){
-            loadAirship();
-            airshipLoad = true;
-        }else if(platLoad && airshipLoad && !camLoad){
-            initCams();
-            camHud.innerText = 'Camera: Train';
-        }else if(platLoad && !peepLoad){
-            setPeeps(numPeeps);
-        }else{
-            if(platLoad){
-                loadingComp = true;
-            }
-        }
+    if(loadProg > 5){
+        loadingComp = true;
+        setTracks();
+        setTrain(3);
+        loadPower();
+        loadWindmills();
+        loadBuildings();
+        loadAirship();
+        setPeeps(numPeeps);
+        setPers(porigin);
+        initCams();
+        camHud.innerText = 'Camera: Train';
+        origin.z = 10;
+        trainGp.add(cam);
+        camRot = 3/2 * Math.PI;
+        moveCam2();
+    }else{
+        camHud.innerText = 'Loading...';
     }
 }
 
@@ -330,28 +351,10 @@ window.addEventListener('keydown', (k)=>{
     }
     if(k.key == '5'){
         interestCam = camA2;
-        camHud.innerText = setCamText();
+        resetCam();
     }
     if(k.key == 'r'){
-        origin.x = 0;
-        origin.y = camHeight;
-        origin.z = 0;
-        camDist = 30;
-        if(interestCam == camS0 || interestCam == camS1){
-            initStationCams();
-        }
-        if(interestCam == camA){
-            interestCam.position.x = 0;
-            interestCam.position.y = camDist;
-            interestCam.position.z = 0;
-            interestCam.rotation.y = 0;
-            interestCam.rotation.x = -Math.PI/2;
-            interestCam.rotation.z = 0;
-        }
-        if(interestCam == cam){
-            moveCam2();
-        }
-        camHud.innerText = setCamText();
+        resetCam();
     }
     if(k.key == 'b'){
         boosting = true;
@@ -389,6 +392,28 @@ window.addEventListener('keyup',(k)=>{
         boosting = false;
     }
 });
+
+function resetCam(){
+    origin.x = 0;
+        origin.y = camHeight;
+        origin.z = 0;
+        camDist = 30;
+        if(interestCam == camS0 || interestCam == camS1){
+            initStationCams();
+        }
+        if(interestCam == camA){
+            interestCam.position.x = 0;
+            interestCam.position.y = camDist;
+            interestCam.position.z = 0;
+            interestCam.rotation.y = 0;
+            interestCam.rotation.x = -Math.PI/2;
+            interestCam.rotation.z = 0;
+        }
+        if(interestCam == cam){
+            moveCam2();
+        }
+        camHud.innerText = setCamText();
+}
 
 function setCamText(){
     if(interestCam == camS0){
@@ -650,21 +675,6 @@ function movePlane(){
     planeSpd = jetSpd(planeSpd,planeMaxSpd,planeSpdBase,planeAccel,boosting);
 }
 
-function initSizes(){
-    gLoader.load(track,function(o){
-        new THREE.Box3().setFromObject(o.scene).getSize(trackSize);
-        trackLoad++;
-    });
-    gLoader.load(trainHead,function(o){
-        new THREE.Box3().setFromObject(o.scene).getSize(engineSize);
-        trackLoad++;
-    });
-    gLoader.load(trainCar,function(o){
-        new THREE.Box3().setFromObject(o.scene).getSize(carSize);
-        trackLoad++;
-    });
-}
-
 function setPlatforms(){
     
     gLoader.load(station,(o)=>{
@@ -696,7 +706,6 @@ function setPlatforms(){
         scene.add(platform2);
         platforms.push(platform);
         platforms.push(platform2);
-        platLoad = true;
     });
 }
 
@@ -722,8 +731,7 @@ function loadPower(){
         new THREE.Box3().setFromObject(powerPlant).getSize(powerSize);
         powerPlant.position.x = xLoc;
         powerPlant.position.y = ground.position.y;
-        powerPlant.rotation.y = -Math.PI/2
-
+        powerPlant.rotation.y = -Math.PI/2;
         scene.add(powerPlant);
     });
 
@@ -745,6 +753,7 @@ function loadPower(){
 }
 
 function loadBuildings(){
+
     let xRat = 0.3;
     let zRat = 0.9;
 
@@ -752,70 +761,63 @@ function loadBuildings(){
     let mult2 = 2.1;
 
     for(let i = 1; i <= buildingNum + buildingNum/mult1 + buildingNum/mult2; i++){
-        gLoader.load(building,function(o){
-            let obj = o.scene;
-
-            if(i < buildingNum/2){
-                obj.position.x = stageDim/2*xRat;
-                obj.position.y = ground.position.y - Math.round(Math.random()*skylineVar);
-                obj.position.z = (stageDim/buildingNum * i * Math.pow(-1,i))*zRat;
-            }else if(i < buildingNum){
-                obj.position.x = -stageDim/2*xRat;
-                obj.position.y = ground.position.y - Math.round(Math.random()*skylineVar);
-                obj.position.z = (stageDim/buildingNum * (i-buildingNum/2) * Math.pow(-1,i))*zRat;
-            }else if(i < buildingNum + buildingNum/mult1/2){
-                obj.position.x = stageDim/2*xRat*mult1;
-                obj.position.y = ground.position.y - Math.round(Math.random()*skylineVar);
-                obj.position.z = stageDim/buildingNum/mult1 * (i-buildingNum+1) * Math.pow(-1,i);
-            }else if(i < buildingNum + buildingNum/mult1){
-                obj.position.x = -stageDim/2*xRat*mult1;
-                obj.position.y = ground.position.y - Math.round(Math.random()*skylineVar);
-                obj.position.z = stageDim/buildingNum/mult1 * (i-buildingNum-buildingNum/mult1/2) * Math.pow(-1,i);
-            }else if(i < buildingNum + buildingNum/mult1 + buildingNum/mult2/2){
-                obj.position.x = stageDim/2*xRat*mult2;
-                obj.position.y = ground.position.y - Math.round(Math.random()*skylineVar);
-                obj.position.z = stageDim/buildingNum/mult1 * (i-buildingNum-buildingNum/mult1) * Math.pow(-1,i);
-            }else if(i < buildingNum + buildingNum/mult1 + buildingNum/mult2){
-                obj.position.x = -stageDim/2*xRat*mult2;
-                obj.position.y = ground.position.y - Math.round(Math.random()*skylineVar);
-                obj.position.z = stageDim/buildingNum/mult1 * (i-buildingNum-buildingNum/mult1-buildingNum/mult2/2) * Math.pow(-1,i);
-            }
-
-            scenery.push(obj);
-            scene.add(obj);
-            buildingsLoad++;
-        });
+        let obj = new THREE.Object3D();
+        obj.copy(buildingObj);
+        if(i < buildingNum/2){
+            obj.position.x = stageDim/2*xRat;
+            obj.position.y = ground.position.y - Math.round(Math.random()*skylineVar);
+            obj.position.z = (stageDim/buildingNum * i * Math.pow(-1,i))*zRat;
+        }else if(i < buildingNum){
+            obj.position.x = -stageDim/2*xRat;
+            obj.position.y = ground.position.y - Math.round(Math.random()*skylineVar);
+            obj.position.z = (stageDim/buildingNum * (i-buildingNum/2) * Math.pow(-1,i))*zRat;
+        }else if(i < buildingNum + buildingNum/mult1/2){
+            obj.position.x = stageDim/2*xRat*mult1;
+            obj.position.y = ground.position.y - Math.round(Math.random()*skylineVar);
+            obj.position.z = stageDim/buildingNum/mult1 * (i-buildingNum+1) * Math.pow(-1,i);
+        }else if(i < buildingNum + buildingNum/mult1){
+            obj.position.x = -stageDim/2*xRat*mult1;
+            obj.position.y = ground.position.y - Math.round(Math.random()*skylineVar);
+            obj.position.z = stageDim/buildingNum/mult1 * (i-buildingNum-buildingNum/mult1/2) * Math.pow(-1,i);
+        }else if(i < buildingNum + buildingNum/mult1 + buildingNum/mult2/2){
+            obj.position.x = stageDim/2*xRat*mult2;
+            obj.position.y = ground.position.y - Math.round(Math.random()*skylineVar);
+            obj.position.z = stageDim/buildingNum/mult1 * (i-buildingNum-buildingNum/mult1) * Math.pow(-1,i);
+        }else if(i < buildingNum + buildingNum/mult1 + buildingNum/mult2){
+            obj.position.x = -stageDim/2*xRat*mult2;
+            obj.position.y = ground.position.y - Math.round(Math.random()*skylineVar);
+            obj.position.z = stageDim/buildingNum/mult1 * (i-buildingNum-buildingNum/mult1-buildingNum/mult2/2) * Math.pow(-1,i);
+        }
+        scenery.push(obj);
+        scene.add(obj);
     }
 }
 
 function loadWindmills(){
+
     let xRat = 0.1;
     let zRat = 0.8;
+    windSize = new THREE.Vector3();
+    new THREE.Box3().setFromObject(windmillObj).getSize(windSize);
+
     for(let i = 0; i < windmillNum; i++){
-        gLoader.load(windmill,function(o){
-            let obj = o.scene;
-            if(!windSize){
-                windSize = new THREE.Vector3();
-                new THREE.Box3().setFromObject(obj).getSize(windSize);
-            }
-            obj.position.x = stageDim/2*xRat*Math.pow(-1,i+1);
-            obj.position.y = windSize.y/2;
-            obj.position.z = (-stageDim/2 + stageDim*(i/windmillNum))*zRat;
+        let obj = new THREE.Object3D();
+        obj.copy(windmillObj);
+        obj.position.x = stageDim/2*xRat*Math.pow(-1,i+1);
+        obj.position.y = windSize.y/2;
+        obj.position.z = (-stageDim/2 + stageDim*(i/windmillNum))*zRat;
+        if(i % 2 == 1){
+            obj.rotation.y = Math.PI;
+        }
 
-            if(i % 2 == 1){
-                obj.rotation.y = Math.PI;
-            }
+        let mixer = new THREE.AnimationMixer(obj);
+        let action = mixer.clipAction(windmillClip);
+        action.time = Math.random();
+        action.play();
 
-            let mixer = new THREE.AnimationMixer(obj);
-            let action = mixer.clipAction(o.animations[0]);
-            action.time = Math.random();
-            action.play();
-
-            scenery.push(obj);
-            scene.add(obj);
-            peepMixers.push(mixer);
-            windmillsLoad++;
-        });
+        scenery.push(obj);
+        scene.add(obj);
+        peepMixers.push(mixer);
     }
 }
 
@@ -850,8 +852,6 @@ function initCams(){
     plane.add(camA);
     camA2.position.copy(new THREE.Vector3(0,0,-camDist));
     plane.add(camA2);
-
-    camLoad = true;
 }
 
 function initStationCams(){
@@ -870,72 +870,57 @@ function setTracks(){
     let tracksTot = Math.ceil(stageDim/trackSize.z);
     console.log('tracks: ' + tracksTot);
     for(let i = 0; i <= tracksTot; i++){
-        gLoader.load(track,function(o){
-            let t = o.scene;
-            t.position.y = ground.position.y;
-            t.position.x = xTrack;
-            t.position.z = -(stageDim + trackSize.z)/2 + i * trackSize.z;
-            scene.add(t);
-            tracks.push(t);
-        });
+        let t = new THREE.Object3D();
+        t.copy(trackObj);
+        t.position.y = ground.position.y;
+        t.position.x = xTrack;
+        t.position.z = -(stageDim + trackSize.z)/2 + i * trackSize.z;
+        scene.add(t);
+        tracks.push(t);
     }
 }
 
 function setTrain(n){
-    gLoader.load(trainHead,function(o){
-        let obj = o.scene;
-        obj.position.x = xTrack;
-        obj.position.y = trackSize.y/2 + engineSize.y/2 + engineOffset;
-        obj.position.z = distOffset;
-        trainGp.add(obj);
-        train.push(obj);
-        trainLoad++;
-    }); 
+
+    let head = new THREE.Object3D();
+    head.copy(engineObj);
+    head.position.x = xTrack;
+    head.position.y = trackSize.y/2 + engineSize.y/2 + engineOffset;
+    head.position.z = distOffset;
+    trainGp.add(head);
+    train.push(head);
+
     for(let i = 0; i < n; i++){
-        gLoader.load(trainCar,function(o){
-            let obj = o.scene;
-            obj.position.x = xTrack;
-            obj.position.y = trackSize.y/2 + carSize.y/2 + passOffset;
-            obj.position.z = engineSize.z + carSize.z * i - distOffset;
-            trainMixers.push(new THREE.AnimationMixer(obj));
-            if(!doorOpenClip){
-                doorOpenClip = o.animations[0];
-            }
-            trainGp.add(obj);
-            train.push(obj);
-            trainLoad++;
-        });
+        let car = new THREE.Object3D();
+        car.copy(traincarObj);
+        car.position.x = xTrack;
+        car.position.y = trackSize.y/2 + carSize.y/2 + passOffset;
+        car.position.z = engineSize.z + carSize.z * i - distOffset;
+        trainMixers.push(new THREE.AnimationMixer(car));
+        trainGp.add(car);
+        train.push(car);
     }
-    gLoader.load(trainHead,function(o){
-        let obj = o.scene;
-        obj.position.x = xTrack;
-        obj.position.y = trackSize.y/2 + engineSize.y/2 + engineOffset;
-        obj.position.z = engineSize.z + carSize.z * n - 2 * distOffset;
-        obj.rotation.y = Math.PI;
-        trainGp.add(obj);
-        train.push(obj);
-        scene.add(trainGp);
-        trainLoad++;
-    });
+    let tail = new THREE.Object3D();
+    tail.copy(engineObj);
+    tail.position.x = xTrack;
+    tail.position.y = trackSize.y/2 + engineSize.y/2 + engineOffset;
+    tail.position.z = engineSize.z + carSize.z * n - 2 * distOffset;
+    tail.rotation.y = Math.PI;
+    trainGp.add(tail);
+    train.push(tail);
+
+    scene.add(trainGp);
 }
 
 function setPeeps(n){
+
+    new THREE.Box3().setFromObject(peepObj).getSize(perSize);
+
     for(let i = 0; i < n; i++){
-        gLoader.load(alien,function(o){
-            const obj = o.scene;
-            if(!peepClip){
-                peepClip = o.animations[0];
-                new THREE.Box3().setFromObject(obj).getSize(perSize);
-            }
-            peepPlace(obj);
-            let mixer = new THREE.AnimationMixer(obj);
-            let action = mixer.clipAction(peepClip);
-            action.time = Math.random();
-            action.play();
-            peepMixers.push(mixer);
-        });
+        const obj = new THREE.Object3D();
+        obj.copy(peepObj);
+        peepPlace(obj);
     }
-    peepLoad = true;
 }
 
 function peepPlace(p){
@@ -954,29 +939,28 @@ function peepPlace(p){
     }
     let peep = new Passenger('anon',p.position);
     peep.copy(p);
+    let mixer = new THREE.AnimationMixer(peep);
+    let action = mixer.clipAction(peepClip);
+    action.time = Math.random();
+    action.play();
+    peepMixers.push(mixer);
     peeps.push(peep);
     scene.add(peep);
 }
 
 function setPers(pos){
-    gLoader.load(alien,function(o){
-        const obj = o.scene;
-        if(!peepClip){
-            peepClip = o.animations[0];
-            new THREE.Box3().setFromObject(obj).getSize(perSize);
-        }
-        obj.position.x = pos.x;
-        obj.position.y = pos.y;
-        obj.position.z = pos.z;
-        obj.rotation.y = persRot;
-        let mixer = new THREE.AnimationMixer(obj);
-        let action = mixer.clipAction(peepClip);
-        action.time = Math.random();
-        action.play();
-        peepMixers.push(mixer);
-        person = obj;
-        scene.add(obj);
-    });
+    const obj = peepObj;
+    obj.position.x = pos.x;
+    obj.position.y = pos.y;
+    obj.position.z = pos.z;
+    obj.rotation.y = persRot;
+    let mixer = new THREE.AnimationMixer(obj);
+    let action = mixer.clipAction(peepClip);
+    action.time = Math.random();
+    action.play();
+    peepMixers.push(mixer);
+    person = obj;
+    scene.add(obj);
 }
 
 function openDoors(){
@@ -1150,7 +1134,7 @@ function readyPass(){
 
 function smokeStack(){
     let xzVar = 4;
-    if(powerLoad){
+    if(loadingComp){
         let part = new THREE.Mesh(smokeShape,smokeMat);
         part.position.x = powerStack.position.x - xzVar + 2*Math.random()*xzVar;
         part.position.z = powerStack.position.z - xzVar + 2*Math.random()*xzVar;
