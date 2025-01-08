@@ -96,7 +96,7 @@ export function moveJetCam2(p,c,climbSpd,turnSpd,inp,xBound,child=0){
         p.position.y += rt.y*turnSpd*inp[0];
         p.position.z += rt.z*turnSpd*inp[0];
     }
-    if(Math.abs(rt.dot(new Vector3(0,1,0))) > thresh){
+    if(Math.abs(rt.dot(new Vector3(0,1,0))) > 0){
         p.rotateOnWorldAxis(fore,rt.dot(new Vector3(0,1,0)));
     }
     c.lookAt(p.position);
