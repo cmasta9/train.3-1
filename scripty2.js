@@ -8,11 +8,27 @@ const spdHUD = document.getElementById('speed');
 const camHUD = document.getElementById('cam');
 const hitHUD = document.getElementById('hitCt');
 
-const aud = document.createElement("AUDIO");
-
 const bg = './graphics/galaxyJ.jpg';
 const ship = './graphics/airship1.glb';
 const eyeB = './graphics/alienEye.glb';
+
+const lazarSE = './audio/se_laserShotSep.mp3';
+const splodeSE = './audio/se_splodeSpace.mp3';
+const hitSE = './audio/se_shipHit3.mp3';
+
+const lazarClip = document.createElement("AUDIO");
+lazarClip.src = lazarSE;
+lazarClip.volume = 0.5;
+lazarClip.loop = false;
+
+const splodeClip = document.createElement("AUDIO");
+splodeClip.src = splodeSE;
+splodeClip.loop = false;
+
+const hitClip = document.createElement("AUDIO");
+hitClip.src = hitSE;
+lazarClip.volume = 0.8;
+hitClip.loop = false;
 
 const gLoader = new GLTFLoader();
 const tLoader = new THREE.TextureLoader();
@@ -48,9 +64,12 @@ let jetSpdBase = 2;
 let spd = jetSpdBase;
 let climbSpd = 0.02;
 let bullSpd = 11;
-let turnSpd = 1;
+let turnSpd = 2;
 let jetSpdMax = 8;
 let accel = 0.1;
+
+let fireCDtime = 0.2;
+let fireCD = false;
 
 let bulletRad = 1;
 
@@ -87,6 +106,14 @@ cam.position.copy(new THREE.Vector3(0,camHei,-camDist));
 let prevTime = Date.now();
 
 function load(){
+
+    hitClip.muted = true;
+    hitClip.play();
+    lazarClip.muted = true;
+    lazarClip.play();
+    splodeClip.muted = true;
+    splodeClip.play();
+
     gLoader.load(ship,function(o){
         let obj = o.scene;
         obj.position.copy(origin);
@@ -120,6 +147,12 @@ function load(){
     drawHits(hits);
 
     setIntervals();
+
+    setTimeout(()=>{
+        hitClip.muted = false;
+        lazarClip.muted = false;
+        splodeClip.muted = false;
+    },2000);
 }
 
 export function animLoop(rend,inp,b){
@@ -148,7 +181,13 @@ export function animLoop(rend,inp,b){
 window.addEventListener('keydown',(e)=>{
     if(camHUD.innerText == 'Camera: Space'){
         if(e.key == ' '){
-            fire();
+            if(!fireCD){
+                fireCD = true;
+                fire();
+                setTimeout(()=>{
+                    fireCD = false;
+                },fireCDtime*1000);
+            }
         }
     }
 });
@@ -158,6 +197,8 @@ function fire(){
     bullet.position.copy(jet.position);
     bullets.push(bullet);
     scene.add(bullet);
+    lazarClip.currentTime = 0;
+    lazarClip.play();
 }
 
 function moveBullets(){
@@ -195,6 +236,8 @@ function enemyCollision(ens,r){
         if(dist(jet.position,ens[e].position) <= r){
             if(!invincible){
                 invinc(invTime);
+                hitClip.currentTime = 0;
+                hitClip.play();
                 hp--;
                 drawHP();
                 if(hp <= 0){
@@ -266,6 +309,11 @@ function splode(p,s=20){
     let frame = 1;
     let sploder = window.setInterval(()=>{
         if(frame < explosion.length){
+            if(frame == 2){
+                splodeClip.volume = (drawDist-dist(jet.position,splosion.position))/drawDist;
+                splodeClip.currentTime = 0;
+                splodeClip.play();
+            }
             splosion.material = new THREE.SpriteMaterial({map: explosion[frame]});
             frame++;
         }else{
@@ -283,7 +331,7 @@ function addEnemies(){
                 let yPos = Math.random()*stageHei;
                 let xPos = Math.random()*planeX - planeX/2;
                 
-                let enemeye = new Hostile(1,enemeyeSpdInit,1,120);
+                let enemeye = new Hostile(1,enemeyeSpdInit+(Math.floor(hits/5)*0.2),1,drawDist*3/5);
                 enemeye.copy(eyenemy);
                 enemeye.scale.copy(new THREE.Vector3(eyenemyScale,eyenemyScale,eyenemyScale));
                 enemeye.position.copy(new THREE.Vector3(xPos,yPos,zPos));
