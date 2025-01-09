@@ -106,6 +106,7 @@ const smoke = [];
 let engineObj = new THREE.Object3D();
 let traincarObj = new THREE.Object3D();
 let trackObj = new THREE.Object3D();
+let platformObj = new THREE.Object3D();
 let buildingObj = new THREE.Object3D();
 let windmillObj = new THREE.Object3D();
 let peepObj = new THREE.Object3D();
@@ -144,6 +145,7 @@ const planeSpdBase = planeSpd;
 const planeMaxSpd = 5;
 let planeAccel = 0.05;
 let boosting = false;
+let hover = false;
 
 let planeHeight = stageDim/2*(2/5);
 let decoyInitY = stageDim/2*(4/5);
@@ -221,7 +223,9 @@ function anim(){
     }else{
         if(start){
             moveTrain();
-            movePlane();
+            if(!hover){
+                movePlane();
+            }
             if(stop){
                 for(let j = 0; j < peeps.length; j++){
                     if(peeps[j].destiny && !peeps[j].boarded){
@@ -285,10 +289,11 @@ function loadModels(){
         new THREE.Box3().setFromObject(trackObj).getSize(trackSize);
         loadProg++;
     });
-
-    setPlatforms();
-    setSkyProps();
-
+    gLoader.load(station,(o)=>{
+        platformObj = o.scene;
+        new THREE.Box3().setFromObject(platformObj).getSize(pSize);
+        loadProg++;
+    });
     gLoader.load(alien,function(o){
         peepObj = o.scene;
         peepClip = o.animations[0];
@@ -303,13 +308,15 @@ function loadModels(){
         windmillClip = o.animations[0];
         loadProg++;
     });
+    setSkyProps();
 }
 
 function loadLoop(){
-    if(loadProg > 5){
+    if(loadProg > 6){
         loadingComp = true;
         setTracks();
         setTrain(3);
+        setPlatforms();
         loadPower();
         loadWindmills();
         loadBuildings();
@@ -390,6 +397,9 @@ window.addEventListener('keydown', (k)=>{
     if(k.key == 'm'){
         toggleMute();
     }
+    if(k.key == 'h'){
+        hover = true;
+    }
 });
 
 function initClick(){
@@ -414,6 +424,9 @@ window.addEventListener('keyup',(k)=>{
     }
     if(k.key == 'b'){
         boosting = false;
+    }
+    if(k.key == 'h'){
+        hover = false;
     }
 });
 
@@ -587,17 +600,19 @@ function drifting(){
         }
     }
 
+    let mult = 4;
+
     if(decoyDrift){
         if(decoyCloud.position.y < dYdecoy + decoyInitY){
-            mothership.position.y += driftSpd;
-            decoyCloud.position.y += driftSpd*2;
+            mothership.position.y += driftSpd*mult;
+            decoyCloud.position.y += driftSpd*2*mult;
         }else{
             decoyDrift = false;
         }
     }else{
         if(decoyCloud.position.y > decoyInitY){
-            mothership.position.y -= driftSpd;
-            decoyCloud.position.y -= driftSpd*2;
+            mothership.position.y -= driftSpd*mult;
+            decoyCloud.position.y -= driftSpd*2*mult;
         }else{
             decoyDrift = true;
         }
@@ -718,48 +733,36 @@ function movePlane(){
 }
 
 function setPlatforms(){
-    
-    gLoader.load(station,(o)=>{
-        const platform = o.scene;
-        const platform2 = new THREE.Object3D().copy(platform);
-        pSize = new THREE.Vector3();
-        new THREE.Box3().setFromObject(platform).getSize(pSize);
-
-        platform.position.z = stageDim/2 - statDist*pSize.z;
-        platform.position.y = stationYoff;
-        platform.rotation.y = Math.PI;
-        platform.position.x = (pSize.x/2 + trackSize.x/2);
-
-        stationHold(platform,-stationXoff,-doorDist);
-        stationHold(platform,-stationXoff,0);
-        stationHold(platform,-stationXoff,doorDist);
-
-        platform2.position.z = -(stageDim/2 - statDist*pSize.z);
-        platform2.position.y = stationYoff;
-        platform2.position.x = -(pSize.x/2 + trackSize.x/2);
-
-        stationHold(platform2,stationXoff,-doorDist);
-        stationHold(platform2,stationXoff,0);
-        stationHold(platform2,stationXoff,doorDist);
-
-        //console.log(platform2.position);
-
-        scene.add(platform);
-        scene.add(platform2);
-        platforms.push(platform);
-        platforms.push(platform2);
-    });
+    let platform = new THREE.Object3D();
+    let platform2 = new THREE.Object3D();
+    platform.copy(platformObj);
+    platform2.copy(platformObj);
+    platform.position.z = stageDim/2 - statDist*pSize.z;
+    platform.position.y = stationYoff;
+    platform.rotation.y = Math.PI;
+    platform.position.x = (pSize.x/2 + trackSize.x/2);
+    stationHold(platform,-stationXoff,-doorDist);
+    stationHold(platform,-stationXoff,0);
+    stationHold(platform,-stationXoff,doorDist);
+    platform2.position.z = -(stageDim/2 - statDist*pSize.z);
+    platform2.position.y = stationYoff;
+    platform2.position.x = -(pSize.x/2 + trackSize.x/2);
+    stationHold(platform2,stationXoff,-doorDist);
+    stationHold(platform2,stationXoff,0);
+    stationHold(platform2,stationXoff,doorDist);
+    //console.log(platform2.position);
+    scene.add(platform);
+    scene.add(platform2);
+    platforms.push(platform);
+    platforms.push(platform2);
 }
 
 function stationHold(s,Xoff,Zoff){
     let p = new THREE.Object3D();
-
     p.position.x = s.position.x + Xoff;
     p.position.y = statY;
     p.position.z = s.position.z + Zoff;
-
-    console.log(p.position);
-
+    //console.log(p.position);
     placeHolders.push(p);
     scene.add(p);
 }
