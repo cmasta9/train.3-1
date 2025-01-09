@@ -5,4 +5,6 @@ You can move the camera by clicking and with the arrow keys.
 
 Watch the watchers ride the train from station to station.
 
+Switch scenes with 'p' (for now).
+
 Do not use assets commercially without permission.
