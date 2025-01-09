@@ -1,5 +1,5 @@
 import {Object3D,Vector3} from 'three';
-import {dirTo} from './loc.js';
+import {dirTo,dist} from './loc.js';
 
 let thresh = 0.02;
 let maxInc = 0.9;
@@ -8,14 +8,20 @@ export let fore = new Vector3();
 let up = new Vector3();
 let rt = new Vector3();
 
-export function moveJet(p,spd,gY=0){
+export function moveJet(p,spd,gY=0,r=500,turnSpd=0.1,child=0){
     let targ = new Vector3();
     p.getWorldDirection(targ);
-    p.position.x += targ.x * spd;
-    if(p.position.y + (targ.y * spd) > gY){
-        p.position.y += targ.y * spd;
+    if(dist(new Vector3(),new Vector3(p.position.x+targ.x*spd,p.position.y+targ.y*spd,p.position.z+targ.z*spd)) < r){
+        p.position.x += targ.x * spd;
+        if(p.position.y + (targ.y * spd) > gY){
+            p.position.y += targ.y * spd;
+        }
+        p.position.z += targ.z * spd;
+    }else{
+        console.log(dist(new Vector3(),new Vector3(p.position.x+targ.x*spd,p.position.y+targ.y*spd,p.position.z+targ.z*spd)));
+        p.children[child].getWorldPosition(up);
+        p.rotateOnWorldAxis(dirTo(p.position,up),turnSpd);
     }
-    p.position.z += targ.z * spd;
 }
 
 export function moveJet2(p,spd,bound){

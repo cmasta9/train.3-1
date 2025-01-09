@@ -3,7 +3,7 @@ import {GLTFLoader} from 'three/addons/loaders/GLTFLoader.js';
 import {Passenger} from './passenger.js';
 import {dirTo, dist,pointOnLine,progress} from './loc.js';
 import {moveJet,moveJetCam,jetSpd} from './jetMove.js';
-import {animLoop,drawHits,drawHP,setIntervals,music2} from './scripty2.js';
+import {animLoop,drawHits,drawHP,setIntervals} from './scripty2.js';
 
 const bgImg = './graphics/blueSky2.jpg';
 const groundTex = './graphics/grass2.jpg';
@@ -17,18 +17,24 @@ const airship = './graphics/airship1.glb';
 const powerplant = './graphics/powerplant.glb';
 const sstack = './graphics/powerstack.glb';
 const alien = './graphics/alienBeing.glb';
+const cloud = './graphics/cloud.glb';
+const ufo = './graphics/ufo.glb';
 
-const bgMusic = './audio/futurescapesOverture4.mp3';
+const bgMusic = './audio/futurescapesOverture4.ogg';
+const bgMusic2 = './audio/futurescapes3.ogg';
 const music = new Audio(bgMusic);
 music.loop = true;
 music.muted = true;
 music.volume = 0;
+let fade = undefined;
 
 let start = false;
 
 const spdHud = document.getElementById('speed');
 const camHud = document.getElementById('cam');
 const hitHUD = document.getElementById('hitCt');
+const muteSymb = document.getElementById('mute');
+const centext = document.getElementById('centext');
 
 const stageDim = 1000;
 const scene = new THREE.Scene();
@@ -114,6 +120,11 @@ let powerStack = new THREE.Object3D();
 let smokeShape = new THREE.SphereGeometry(16,3,2);
 let smokeMat = new THREE.MeshLambertMaterial({color: 0xeeeeee});
 
+let decoyCloud = new THREE.Object3D();
+let mothership = new THREE.Object3D();
+let dYdecoy = 5;
+let decoyDrift = true;
+
 let person = undefined;
 let persRot = 0;
 let perSize = new THREE.Vector3();
@@ -125,13 +136,17 @@ let prevTime = Date.now();
 let lastZ = 0;
 
 let spd = 0.05;
-let perSpd = 0.5;
+let perSpd = 0.1;
+let watcherSpd = 0.5;
 
 let planeSpd = 0.42;
 const planeSpdBase = planeSpd;
 const planeMaxSpd = 5;
 let planeAccel = 0.05;
 let boosting = false;
+
+let planeHeight = stageDim/2*(2/5);
+let decoyInitY = stageDim/2*(4/5);
 
 const maxSpd = 1.5;
 let trainSpd = 0.5;
@@ -161,8 +176,6 @@ scene.fog = new THREE.Fog(0xffffff,0.1,stageDim-6);
 let skylineVar = 16;
 let buildingNum = 29;
 let windmillNum = 20;
-
-let planeHeight = 200;
 
 let loadingComp = false;
 let loadProg = 0;
@@ -194,6 +207,7 @@ cam.position.z = origin.z;
 const trainGp = new THREE.Object3D();
 
 window.addEventListener('click',initClick);
+muteSymb.addEventListener('click',toggleMute);
 
 //---------------------------- GAME LOOP -----------------------------//
 
@@ -208,12 +222,6 @@ function anim(){
         if(start){
             moveTrain();
             movePlane();
-            if(stop){
-                for(let i = 0; i < trainMixers.length; i++){
-                    trainMixers[i].update((Date.now() - prevTime)/1000);
-                }
-            }
-    
             if(stop){
                 for(let j = 0; j < peeps.length; j++){
                     if(peeps[j].destiny && !peeps[j].boarded){
@@ -241,10 +249,16 @@ function anim(){
         }
         moveCam();
         dTime = (Date.now() - prevTime)/1000;
+        if(stop){
+            for(let i = 0; i < trainMixers.length; i++){
+                trainMixers[i].update((Date.now() - prevTime)/1000);
+            }
+        }
         for(let j = 0; j < peepMixers.length; j++){
             peepMixers[j].update(dTime);
         }
         prevTime = Date.now();
+        drifting();
         sky.rotation.y += skyRot;
     }
 }
@@ -273,6 +287,7 @@ function loadModels(){
     });
 
     setPlatforms();
+    setSkyProps();
 
     gLoader.load(alien,function(o){
         peepObj = o.scene;
@@ -372,13 +387,19 @@ window.addEventListener('keydown', (k)=>{
             camHud.innerText = setCamText();
         }
     }
+    if(k.key == 'm'){
+        toggleMute();
+    }
 });
 
 function initClick(){
     if(!start){
         start = true;
+        centext.innerText = '';
         hitHUD.innerText = '';
-        musicFadeIn(music,1,0);
+        music.muted = false;
+        musicFadeIn(1,0);
+        updateMute();
         window.removeEventListener('click',initClick);
     }
 }
@@ -549,7 +570,9 @@ function moveTrain(){
             stop = false;
         }
     }
-    //cenText.innerText = trainGp.position.z;
+}
+
+function drifting(){
     if(drift){
         if(trainGp.position.y < driftHei){
             trainGp.position.y += driftSpd;
@@ -561,6 +584,22 @@ function moveTrain(){
             trainGp.position.y -= driftSpd;
         }else{
             drift = true;
+        }
+    }
+
+    if(decoyDrift){
+        if(decoyCloud.position.y < dYdecoy + decoyInitY){
+            mothership.position.y += driftSpd;
+            decoyCloud.position.y += driftSpd*2;
+        }else{
+            decoyDrift = false;
+        }
+    }else{
+        if(decoyCloud.position.y > decoyInitY){
+            mothership.position.y -= driftSpd;
+            decoyCloud.position.y -= driftSpd*2;
+        }else{
+            decoyDrift = true;
         }
     }
 }
@@ -631,15 +670,15 @@ function moveCamP(){
     person.rotation.y = persRot;
 
     if(input[1] != 0){
-        person.position.x += input[1]*perSpd*Math.cos(person.rotation.y);
-        person.position.z -= input[1]*perSpd*Math.sin(person.rotation.y);
+        person.position.x += input[1]*watcherSpd*Math.cos(person.rotation.y);
+        person.position.z -= input[1]*watcherSpd*Math.sin(person.rotation.y);
     }
     if(input[0] != 0){
-        person.position.x += input[0]*perSpd*Math.sin(person.rotation.y);
-        person.position.z += input[0]*perSpd*Math.cos(person.rotation.y);
+        person.position.x += input[0]*watcherSpd*Math.sin(person.rotation.y);
+        person.position.z += input[0]*watcherSpd*Math.cos(person.rotation.y);
     }
     if(person.position.y > ground.position.y + perSize.y/2){
-        person.position.y -= perSpd;
+        person.position.y -= watcherSpd;
     }
 }
 
@@ -673,7 +712,7 @@ function movePlane(){
             }
         }
     }else{
-        moveJet(plane,planeSpd);
+        moveJet(plane,planeSpd,ground.y,stageDim/2-20);
     }
     planeSpd = jetSpd(planeSpd,planeMaxSpd,planeSpdBase,planeAccel,boosting);
 }
@@ -966,6 +1005,28 @@ function setPers(pos){
     scene.add(obj);
 }
 
+function setSkyProps(){
+    let sx = 4.2;
+    gLoader.load(cloud,function(o){
+        decoyCloud.copy(o.scene);
+        decoyCloud.scale.x = sx;
+        decoyCloud.scale.y = sx;
+        decoyCloud.scale.z = sx;
+        decoyCloud.position.y = decoyInitY;
+        scene.add(decoyCloud);
+    });
+    gLoader.load(ufo,function(o){
+        mothership.copy(o.scene);
+        mothership.scale.x = sx;
+        mothership.scale.y = sx;
+        mothership.scale.z = sx;
+        mothership.position.y = (decoyInitY+stageDim/2)/2;
+        scene.add(mothership);
+    });
+}
+
+//********************** boarding *****************************//
+
 function openDoors(){
     let oTime = 1;
     for(let d = 0; d < trainMixers.length; d++){
@@ -1135,6 +1196,8 @@ function readyPass(){
     return unready;
 }
 
+//***********************************************************************//
+
 function smokeStack(){
     let xzVar = 4;
     if(loadingComp){
@@ -1159,22 +1222,21 @@ function smokeRise(){
     }
 }
 
-function musicFadeIn(music,vol,t){
+function musicFadeIn(vol,t){
     let tol = 0.05;
     let init = music.volume;
-    if(music.muted){
-        music.muted = false;
-    }
     if(music.paused){
         music.play();
     }
-    let int = setInterval(()=>{
+    fade = setInterval(()=>{
         if(music.volume >= vol - tol){
-            clearInterval(int);
+            clearInterval(fade);
+            fade = undefined;
         }else{
             if(music.volume + (vol-init)/10 >= 1 - tol){
                 music.volume = 1;
-                clearInterval(int);
+                clearInterval(fade);
+                fade = undefined;
             }else{
                 music.volume += (vol-init)/10;
             }
@@ -1182,22 +1244,22 @@ function musicFadeIn(music,vol,t){
     },t*100);
 }
 
-function musicFadeOut(music,vol,t){
+function musicFadeOut(vol,t){
     let tol = 0.05
     let init = music.volume;
-    let int = setInterval(()=>{
+    fade = setInterval(()=>{
         if(music.volume <= vol + tol){
             if(vol <= tol){
                 music.pause();
-                music.muted = true;
             }
-            clearInterval(int);
+            clearInterval(fade);
+            fade = undefined;
         }else{
             if(music.volume - (init-vol)/10 <= tol){
                 music.volume = 0;
                 music.pause();
-                music.muted = true;
-                clearInterval(int);
+                clearInterval(fade);
+                fade = undefined;
             }else{
                 music.volume -= (init-vol)/10;
                 console.log(music.volume);
@@ -1206,22 +1268,53 @@ function musicFadeOut(music,vol,t){
     },t*100);
 }
 
+function toggleMute(){
+    if(!fade){
+        if(music.muted){
+            music.muted = false;
+            musicFadeIn(1,0.2);
+        }else{
+            music.muted = true;
+            musicFadeOut(0,0.2);
+        }
+        updateMute();
+    }
+}
+
+function updateMute(){
+    if(music.muted){
+        muteSymb.innerHTML = '&#128263;';
+    }else{
+        muteSymb.innerHTML = '&#128264;';
+    }
+}
+
 function sceneSwitch(){
     if(scene2){
-        musicFadeOut(music2,0,1);
-        setTimeout(()=>{
-            musicFadeIn(music,1,1);
-        },2000);
+        if(!music.muted){
+            musicFadeOut(0,1);
+            setTimeout(()=>{
+                music.src = bgMusic;
+                musicFadeIn(1,1);
+            },2000);
+        }else{
+            music.src = bgMusic;
+        }
         rend.setAnimationLoop(anim);
         hitHUD.innerText = '';
         scene2 = false;
         start = true;
     }else{
         start = false;
-        musicFadeOut(music,0,1);
-        setTimeout(()=>{
-            musicFadeIn(music2,1,1);
-        },2000);
+        if(!music.muted){
+            musicFadeOut(0,1);
+            setTimeout(()=>{
+                music.src = bgMusic2;
+                musicFadeIn(1,1);
+            },2000);
+        }else{
+            music.src = bgMusic2;
+        }
         rend.setAnimationLoop(animJet);
         drawHits();
         drawHP();
