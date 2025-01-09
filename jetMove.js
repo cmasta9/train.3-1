@@ -8,11 +8,13 @@ export let fore = new Vector3();
 let up = new Vector3();
 let rt = new Vector3();
 
-export function moveJet(p,spd){
+export function moveJet(p,spd,gY=0){
     let targ = new Vector3();
     p.getWorldDirection(targ);
     p.position.x += targ.x * spd;
-    p.position.y += targ.y * spd;
+    if(p.position.y + (targ.y * spd) > gY){
+        p.position.y += targ.y * spd;
+    }
     p.position.z += targ.z * spd;
 }
 

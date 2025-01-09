@@ -3,7 +3,7 @@ import {GLTFLoader} from 'three/addons/loaders/GLTFLoader.js';
 import {Passenger} from './passenger.js';
 import {dirTo, dist,pointOnLine,progress} from './loc.js';
 import {moveJet,moveJetCam,jetSpd} from './jetMove.js';
-import {animLoop,drawHits,drawHP,setIntervals} from './scripty2.js';
+import {animLoop,drawHits,drawHP,setIntervals,music2} from './scripty2.js';
 
 const bgImg = './graphics/blueSky2.jpg';
 const groundTex = './graphics/grass2.jpg';
@@ -18,12 +18,11 @@ const powerplant = './graphics/powerplant.glb';
 const sstack = './graphics/powerstack.glb';
 const alien = './graphics/alienBeing.glb';
 
-/*
-const music = document.createElement("AUDIO");
+const bgMusic = './audio/futurescapesOverture4.mp3';
+const music = new Audio(bgMusic);
 music.loop = true;
 music.muted = true;
-music.src = bgMusic;
-*/
+music.volume = 0;
 
 let start = false;
 
@@ -194,6 +193,8 @@ cam.position.y = origin.y;
 cam.position.z = origin.z;
 const trainGp = new THREE.Object3D();
 
+window.addEventListener('click',initClick);
+
 //---------------------------- GAME LOOP -----------------------------//
 
 rend.render(scene,interestCam);
@@ -204,46 +205,48 @@ function anim(){
     if(!loadingComp){
         loadLoop();
     }else{
-        moveTrain();
-        if(stop){
-            for(let i = 0; i < trainMixers.length; i++){
-                trainMixers[i].update((Date.now() - prevTime)/1000);
-            }
-        }
-    }
-
-    for(let j = 0; j < peepMixers.length; j++){
-        peepMixers[j].update((Date.now() - prevTime)/1000);
-    }
-
-    if(stop){
-        for(let j = 0; j < peeps.length; j++){
-            if(peeps[j].destiny && !peeps[j].boarded){
-                if(dist(peeps[j].position,peeps[j].destiny) > perSpd){
-                    let dis = dirTo(peeps[j].position,peeps[j].destiny);
-                    peeps[j].position.x += dis.x * perSpd;
-                    peeps[j].position.y += dis.y * perSpd;
-                    peeps[j].position.z += dis.z * perSpd;
+        if(start){
+            moveTrain();
+            movePlane();
+            if(stop){
+                for(let i = 0; i < trainMixers.length; i++){
+                    trainMixers[i].update((Date.now() - prevTime)/1000);
                 }
             }
-        }
-    }else{
-        for(let j = 0; j < peeps.length; j++){
-            if(peeps[j].boarded){
-                peeps[j].position.z = trainGp.position.z + peeps[j].offset;
+    
+            if(stop){
+                for(let j = 0; j < peeps.length; j++){
+                    if(peeps[j].destiny && !peeps[j].boarded){
+                        if(dist(peeps[j].position,peeps[j].destiny) > perSpd){
+                            let dis = dirTo(peeps[j].position,peeps[j].destiny);
+                            peeps[j].position.x += dis.x * perSpd;
+                            peeps[j].position.y += dis.y * perSpd;
+                            peeps[j].position.z += dis.z * perSpd;
+                        }
+                    }
+                }
+            }else{
+                for(let j = 0; j < peeps.length; j++){
+                    if(peeps[j].boarded){
+                        peeps[j].position.z = trainGp.position.z + peeps[j].offset;
+                    }
+                }
             }
+            let speedOm = (trainGp.position.z - lastZ) / dTime * (18/5);
+            //brake.innerText = (speedOm / accel * dTime / (18/5)).toPrecision(2);
+            lastZ = trainGp.position.z;
+            spdHud.innerText = `${Math.abs(speedOm).toPrecision(3)} km/hr`;
+        }else{
+            hitHUD.innerText = 'Click to Start';
         }
+        moveCam();
+        dTime = (Date.now() - prevTime)/1000;
+        for(let j = 0; j < peepMixers.length; j++){
+            peepMixers[j].update(dTime);
+        }
+        prevTime = Date.now();
+        sky.rotation.y += skyRot;
     }
-
-    moveCam();
-    movePlane();
-    sky.rotation.y += skyRot;
-    dTime = (Date.now() - prevTime)/1000;
-    let speedOm = (trainGp.position.z - lastZ) / dTime * (18/5);
-    //brake.innerText = (speedOm / accel * dTime / (18/5)).toPrecision(2);
-    prevTime = Date.now();
-    lastZ = trainGp.position.z;
-    spdHud.innerText = `${Math.abs(speedOm).toPrecision(3)} km/hr`;
 }
 
 function animJet(){
@@ -352,6 +355,7 @@ window.addEventListener('keydown', (k)=>{
     if(k.key == '5'){
         interestCam = camA2;
         resetCam();
+        interestCam.lookAt(plane.position);
     }
     if(k.key == 'r'){
         resetCam();
@@ -361,24 +365,23 @@ window.addEventListener('keydown', (k)=>{
     }
     if(k.key == 'p'){
         if(!cooldown){
-            if(scene2){
-                rend.setAnimationLoop(anim);
-                hitHUD.innerText = '';
-                scene2 = false;
-            }else{
-                rend.setAnimationLoop(animJet);
-                drawHits();
-                drawHP();
-                setIntervals();
-                scene2 = true;
-            }
             cooldown = setTimeout(()=>{
                 cooldown = undefined;  
-            },1000);
+            },5000);
+            sceneSwitch();
             camHud.innerText = setCamText();
         }
     }
 });
+
+function initClick(){
+    if(!start){
+        start = true;
+        hitHUD.innerText = '';
+        musicFadeIn(music,1,0);
+        window.removeEventListener('click',initClick);
+    }
+}
 
 window.addEventListener('keyup',(k)=>{
     //console.log(`${k.key} up`);
@@ -1153,6 +1156,77 @@ function smokeRise(){
             scene.remove(smoke[p]);
             smoke.splice(p,1);
         }
+    }
+}
+
+function musicFadeIn(music,vol,t){
+    let tol = 0.05;
+    let init = music.volume;
+    if(music.muted){
+        music.muted = false;
+    }
+    if(music.paused){
+        music.play();
+    }
+    let int = setInterval(()=>{
+        if(music.volume >= vol - tol){
+            clearInterval(int);
+        }else{
+            if(music.volume + (vol-init)/10 >= 1 - tol){
+                music.volume = 1;
+                clearInterval(int);
+            }else{
+                music.volume += (vol-init)/10;
+            }
+        }
+    },t*100);
+}
+
+function musicFadeOut(music,vol,t){
+    let tol = 0.05
+    let init = music.volume;
+    let int = setInterval(()=>{
+        if(music.volume <= vol + tol){
+            if(vol <= tol){
+                music.pause();
+                music.muted = true;
+            }
+            clearInterval(int);
+        }else{
+            if(music.volume - (init-vol)/10 <= tol){
+                music.volume = 0;
+                music.pause();
+                music.muted = true;
+                clearInterval(int);
+            }else{
+                music.volume -= (init-vol)/10;
+                console.log(music.volume);
+            }
+        }
+    },t*100);
+}
+
+function sceneSwitch(){
+    if(scene2){
+        musicFadeOut(music2,0,1);
+        setTimeout(()=>{
+            musicFadeIn(music,1,1);
+        },2000);
+        rend.setAnimationLoop(anim);
+        hitHUD.innerText = '';
+        scene2 = false;
+        start = true;
+    }else{
+        start = false;
+        musicFadeOut(music,0,1);
+        setTimeout(()=>{
+            musicFadeIn(music2,1,1);
+        },2000);
+        rend.setAnimationLoop(animJet);
+        drawHits();
+        drawHP();
+        setIntervals();
+        scene2 = true;
     }
 }
 

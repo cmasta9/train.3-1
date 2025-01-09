@@ -15,20 +15,23 @@ const eyeB = './graphics/alienEye.glb';
 const lazarSE = './audio/se_laserShotSep.mp3';
 const splodeSE = './audio/se_splodeSpace.mp3';
 const hitSE = './audio/se_shipHit3.mp3';
+const bgMusic = './audio/futurescapes3.ogg';
 
-const lazarClip = document.createElement("AUDIO");
-lazarClip.src = lazarSE;
+const lazarClip = new Audio(lazarSE);
 lazarClip.volume = 0.5;
 lazarClip.loop = false;
 
-const splodeClip = document.createElement("AUDIO");
-splodeClip.src = splodeSE;
+const splodeClip = new Audio(splodeSE);
 splodeClip.loop = false;
 
-const hitClip = document.createElement("AUDIO");
-hitClip.src = hitSE;
+const hitClip = new Audio(hitSE);
 lazarClip.volume = 0.8;
 hitClip.loop = false;
+
+export const music2 = new Audio(bgMusic);
+music2.loop = true;
+music2.volume = 0;
+music2.muted = true;
 
 const gLoader = new GLTFLoader();
 const tLoader = new THREE.TextureLoader();
@@ -216,7 +219,7 @@ function moveBullets(){
                 bullets[b].position.z += fore.z * bullSpd;
             }
         }
-        console.log(bullets.length);
+        //console.log(bullets.length);
     }
 }
 
