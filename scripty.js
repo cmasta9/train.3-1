@@ -21,7 +21,7 @@ const cloud = './graphics/cloud.glb';
 const ufo = './graphics/ufo.glb';
 
 const bgMusic = './audio/futurescapesOverture4.ogg';
-const bgMusic2 = './audio/futurescapes3.ogg';
+const bgMusic2 = './audio/futurescapes4.ogg';
 const music = new Audio(bgMusic);
 music.loop = true;
 music.muted = true;
