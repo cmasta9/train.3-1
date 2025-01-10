@@ -32,6 +32,7 @@ let start = false;
 
 const spdHud = document.getElementById('speed');
 const camHud = document.getElementById('cam');
+const camNum = document.getElementById('camNum');
 const hitHUD = document.getElementById('hitCt');
 const muteSymb = document.getElementById('mute');
 const centext = document.getElementById('centext');
@@ -44,6 +45,7 @@ const camS1 = new THREE.PerspectiveCamera(90,window.innerWidth/window.innerHeigh
 const camP = new THREE.PerspectiveCamera(90,window.innerWidth/window.innerHeight,0.1,stageDim);
 const camA = new THREE.PerspectiveCamera(90,window.innerWidth/window.innerHeight,0.1,stageDim);
 const camA2 = new THREE.PerspectiveCamera(90,window.innerWidth/window.innerHeight,0.1,stageDim);
+const camCut = new THREE.PerspectiveCamera(90,window.innerWidth/window.innerHeight,0.1,stageDim);
 const tLoader = new THREE.TextureLoader();
 const gLoader = new GLTFLoader();
 const bgTex = tLoader.load(bgImg);
@@ -324,7 +326,7 @@ function loadLoop(){
         setPeeps(numPeeps);
         setPers(porigin);
         initCams();
-        camHud.innerText = 'Camera: Train';
+        camHud.innerText = setCamText();
         origin.z = 10;
         trainGp.add(cam);
         camRot = 3/2 * Math.PI;
@@ -361,23 +363,28 @@ window.addEventListener('keydown', (k)=>{
     if(k.key == '1'){
         interestCam = camS1;
         camHud.innerText = setCamText();
+        camNum.innerHTML = '0 <b>1</b> 2 3 4 5';
     }
     if(k.key == '2'){
         interestCam = cam;
         camHud.innerText = setCamText();
+        camNum.innerHTML = '0 1 <b>2</b> 3 4 5';
     }
     if(k.key == '3'){
         interestCam = camP;
         camHud.innerText = setCamText();
+        camNum.innerHTML = '0 1 2 <b>3</b> 4 5';
     }
     if(k.key == '4'){
         interestCam = camA;
         camHud.innerText = setCamText();
+        camNum.innerHTML = '0 1 2 3 <b>4</b> 5';
     }
     if(k.key == '5'){
         interestCam = camA2;
         resetCam();
         interestCam.lookAt(plane.position);
+        camNum.innerHTML = '0 1 2 3 4 <b>5</b>';
     }
     if(k.key == 'r'){
         resetCam();
@@ -454,19 +461,26 @@ function resetCam(){
 
 function setCamText(){
     if(interestCam == camS0){
+        camNum.innerHTML = '<b>0</b> 1 2 3 4 5';
         return 'Camera: Station 1';
     }else if(interestCam == camS1){
+        camNum.innerHTML = '0 <b>1</b> 2 3 4 5';
         return 'Camera: Station 2';
     }else if(interestCam == cam){
+        camNum.innerHTML = '0 1 <b>2</b> 3 4 5';
         return 'Camera: Train';
     }else if(interestCam == camP){
+        camNum.innerHTML = '0 1 2 <b>3</b> 4 5';
         return 'Camera: Watcher';
     }else if(interestCam == camA){
+        camNum.innerHTML = '0 1 2 3 <b>4</b> 5';
         return 'Camera: Air';
     }else if(interestCam == camA2){
+        camNum.innerHTML = '0 1 2 3 4 <b>5</b>';
         return 'Camera: Jet';
     }else{
         if(scene2){
+            camNum.innerHTML = '';
             return 'Camera: Space';
         }
         return '';
