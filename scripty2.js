@@ -3,6 +3,7 @@ import {GLTFLoader} from 'three/addons/loaders/GLTFLoader.js';
 import {dirTo,dist,pointOnLine,progress} from './loc.js';
 import {moveJet2,moveJetCam2,jetSpd,fore} from './jetMove.js';
 import {Hostile} from './hostile.js';
+import {sceneSwitch} from './scripty.js';
 
 const spdHUD = document.getElementById('speed');
 const camHUD = document.getElementById('cam');
@@ -294,7 +295,7 @@ function death(){
     splode(jet.position,60);
     flash(2,jet,new THREE.Color(0x000000));
     setTimeout(()=>{
-        reset();
+        reset(true);
     },2000);
 }
 
@@ -427,7 +428,7 @@ export function setIntervals(){
     },4000);
 }
 
-function reset(){
+function reset(s=false){
     removeRocks();
     jet.position.copy(origin);
     removeAllEnemies();
@@ -437,4 +438,7 @@ function reset(){
     hp = maxHits;
     drawHP();
     go = true;
+    if(s){
+        sceneSwitch();
+    }
 }

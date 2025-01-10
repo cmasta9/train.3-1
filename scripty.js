@@ -29,6 +29,7 @@ music.volume = 0;
 let fade = undefined;
 
 let start = false;
+let chase = false;
 
 const spdHud = document.getElementById('speed');
 const camHud = document.getElementById('cam');
@@ -151,6 +152,7 @@ let hover = false;
 
 let planeHeight = stageDim/2*(2/5);
 let decoyInitY = stageDim/2*(4/5);
+let ufoInitY = (decoyInitY+stageDim/2)/2;
 
 const maxSpd = 1.5;
 let trainSpd = 0.5;
@@ -250,6 +252,10 @@ function anim(){
             //brake.innerText = (speedOm / accel * dTime / (18/5)).toPrecision(2);
             lastZ = trainGp.position.z;
             spdHud.innerText = `${Math.abs(speedOm).toPrecision(3)} km/hr`;
+
+            if(dist(plane.position,mothership.position) < 100){
+                switchCutsceneInit();
+            }
         }else{
             hitHUD.innerText = 'Click to Start';
         }
@@ -271,6 +277,23 @@ function anim(){
 
 function animJet(){
     animLoop(rend,input,boosting);
+}
+
+function switchCutscene(){
+    rend.render(scene,camCut);
+    planeSpd = planeSpdBase;
+    movePlane(mothership.position);
+    mothership.position.y += planeSpd;
+    camCut.lookAt(mothership.position);
+    if(dist(mothership.position,ground.position) > stageDim/2 + 125){
+        sceneSwitch();
+        chase = false;
+        plane.position.copy(new THREE.Vector3(0,planeHeight,0));
+        plane.rotation.x = 0;
+        plane.rotation.y = 0;
+        plane.rotation.z = 0;
+        mothership.position.copy(new THREE.Vector3(0,ufoInitY,0));
+    }
 }
 
 function loadModels(){
@@ -393,6 +416,7 @@ window.addEventListener('keydown', (k)=>{
         boosting = true;
     }
     if(k.key == 'p'){
+        /*
         if(!cooldown){
             cooldown = setTimeout(()=>{
                 cooldown = undefined;  
@@ -400,6 +424,7 @@ window.addEventListener('keydown', (k)=>{
             sceneSwitch();
             camHud.innerText = setCamText();
         }
+        */
     }
     if(k.key == 'm'){
         toggleMute();
@@ -717,22 +742,30 @@ function moveCamA(){
     }
 }
 
-function movePlane(){
-    if(interestCam != camA2){
-        if (dist(plane.position,apos[atarget]) >= planeSpd){
-            let dir = dirTo(plane.position,apos[atarget]);
+function movePlane(t=undefined){
+    let targ = t;
+    if(!targ){
+        targ = apos[atarget];
+    }
+    if(interestCam != camA2 || chase){
+        if (dist(plane.position,targ) >= planeSpd){
+            let dir = dirTo(plane.position,targ);
             plane.position.x += dir.x * planeSpd;
             plane.position.z += dir.z * planeSpd;
             plane.position.y += dir.y * planeSpd;
-            if(atarget >= apos.length - 1){
-                plane.lookAt(pointOnLine(apos[atarget],apos[0],progress(apos[atarget-1],apos[atarget],plane.position)));
-                //console.log(progress(apos[atarget-1],apos[atarget],plane.position));
-            }else if (atarget > 0){
-                plane.lookAt(pointOnLine(apos[atarget],apos[atarget+1],progress(apos[atarget-1],apos[atarget],plane.position)));
-                //console.log(progress(apos[atarget-1],apos[atarget],plane.position))
+            if(!t){
+                if(atarget >= apos.length - 1){
+                    plane.lookAt(pointOnLine(apos[atarget],apos[0],progress(apos[atarget-1],apos[atarget],plane.position)));
+                    //console.log(progress(apos[atarget-1],apos[atarget],plane.position));
+                }else if (atarget > 0){
+                    plane.lookAt(pointOnLine(apos[atarget],apos[atarget+1],progress(apos[atarget-1],apos[atarget],plane.position)));
+                    //console.log(progress(apos[atarget-1],apos[atarget],plane.position))
+                }else{
+                    plane.lookAt(pointOnLine(apos[atarget],apos[atarget+1],progress(apos[apos.length-1],apos[atarget],plane.position)));
+                    //console.log(progress(apos[apos.length-1],apos[atarget],plane.position));
+                }
             }else{
-                plane.lookAt(pointOnLine(apos[atarget],apos[atarget+1],progress(apos[apos.length-1],apos[atarget],plane.position)));
-                //console.log(progress(apos[apos.length-1],apos[atarget],plane.position));
+                plane.lookAt(targ);
             }
         }else{
             atarget++;
@@ -1037,7 +1070,7 @@ function setSkyProps(){
         mothership.scale.x = sx;
         mothership.scale.y = sx;
         mothership.scale.z = sx;
-        mothership.position.y = (decoyInitY+stageDim/2)/2;
+        mothership.position.y = ufoInitY;
         scene.add(mothership);
     });
 }
@@ -1306,7 +1339,7 @@ function updateMute(){
     }
 }
 
-function sceneSwitch(){
+export function sceneSwitch(){
     if(scene2){
         if(!music.muted){
             musicFadeOut(0,1);
@@ -1338,6 +1371,16 @@ function sceneSwitch(){
         setIntervals();
         scene2 = true;
     }
+    camHud.innerText = setCamText();
+}
+
+function switchCutsceneInit(){
+    start = false;
+    chase = true;
+    camCut.position.copy(new THREE.Vector3(50,ufoInitY,50));
+    camCut.position.x += 50;
+    camCut.lookAt(mothership.position);
+    rend.setAnimationLoop(switchCutscene);
 }
 
 window.addEventListener('resize',()=>{
