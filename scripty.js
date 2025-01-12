@@ -3,7 +3,7 @@ import {GLTFLoader} from 'three/addons/loaders/GLTFLoader.js';
 import {Passenger} from './passenger.js';
 import {dirTo, dist,pointOnLine,progress} from './loc.js';
 import {moveJet,moveJetCam,jetSpd} from './jetMove.js';
-import {animLoop,drawHits,drawHP,setIntervals} from './scripty2.js';
+import {drawHits,drawHP,setIntervals,setGo,switchSceneX} from './scripty2.js';
 
 const bgImg = './graphics/blueSky2.jpg';
 const groundTex = './graphics/grass2.jpg';
@@ -18,7 +18,7 @@ const powerplant = './graphics/powerplant.glb';
 const sstack = './graphics/powerstack.glb';
 const alien = './graphics/alienBeing.glb';
 const cloud = './graphics/cloud.glb';
-const ufo = './graphics/ufo.glb';
+const ufo = './graphics/ufo2.glb';
 
 const bgMusic = './audio/futurescapesOverture4.ogg';
 const bgMusic2 = './audio/futurescapes4.ogg';
@@ -56,7 +56,7 @@ gTex.wrapT = THREE.RepeatWrapping;
 gTex.repeat.set(stageDim/4,stageDim/4);
 bgTex.colorSpace = THREE.SRGBColorSpace;
 
-const rend = new THREE.WebGLRenderer();
+let rend = new THREE.WebGLRenderer();
 rend.setSize(window.innerWidth,window.innerHeight);
 const ratio = rend.getPixelRatio();
 document.body.appendChild(rend.domElement);
@@ -93,7 +93,7 @@ let tapCounter = undefined;
 let touchX = undefined;
 
 const maxInput = 1;
-let input = [0,0];
+export let input = [0,0];
 
 //const scenery = [];
 const tracks = [];
@@ -116,6 +116,7 @@ let peepObj = new THREE.Object3D();
 let doorOpenClip = undefined;
 let peepClip = undefined;
 let windmillClip = undefined;
+let ufoClip = undefined;
 
 let plane = new THREE.Object3D();
 let powerPlant = new THREE.Object3D();
@@ -125,6 +126,7 @@ let smokeShape = new THREE.SphereGeometry(16,3,2);
 let smokeMat = new THREE.MeshLambertMaterial({color: 0xeeeeee});
 
 let decoyCloud = new THREE.Object3D();
+let cloud2 = new THREE.Object3D();
 let mothership = new THREE.Object3D();
 let dYdecoy = 5;
 let decoyDrift = true;
@@ -283,9 +285,9 @@ function switchCutscene(){
     rend.render(scene,camCut);
     planeSpd = planeSpdBase;
     movePlane(mothership.position);
-    mothership.position.y += planeSpd;
+    mothership.position.y += (planeSpd+0.05);
     camCut.lookAt(mothership.position);
-    if(dist(mothership.position,ground.position) > stageDim/2 + 125){
+    if(dist(mothership.position,ground.position) > stageDim/2 + 135){
         sceneSwitch();
         chase = false;
         plane.position.copy(new THREE.Vector3(0,planeHeight,0));
@@ -333,11 +335,19 @@ function loadModels(){
         windmillClip = o.animations[0];
         loadProg++;
     });
-    setSkyProps();
+    gLoader.load(ufo,function(o){
+        mothership.copy(o.scene);
+        ufoClip = o.animations[0];
+        loadProg++;
+    });
+    gLoader.load(cloud,function(o){
+        decoyCloud.copy(o.scene);
+        loadProg++;
+    });
 }
 
 function loadLoop(){
-    if(loadProg > 6){
+    if(loadProg > 8){
         loadingComp = true;
         setTracks();
         setTrain(3);
@@ -348,6 +358,7 @@ function loadLoop(){
         loadAirship();
         setPeeps(numPeeps);
         setPers(porigin);
+        setSkyProps();
         initCams();
         camHud.innerText = setCamText();
         origin.z = 10;
@@ -501,13 +512,14 @@ function setCamText(){
         camNum.innerHTML = '0 1 2 3 <b>4</b> 5';
         return 'Camera: Air';
     }else if(interestCam == camA2){
-        camNum.innerHTML = '0 1 2 3 4 <b>5</b>';
-        return 'Camera: Jet';
-    }else{
         if(scene2){
             camNum.innerHTML = '';
             return 'Camera: Space';
+        }else{
+            camNum.innerHTML = '0 1 2 3 4 <b>5</b>';
+            return 'Camera: Jet';
         }
+    }else{
         return '';
     }
 }
@@ -645,6 +657,7 @@ function drifting(){
         if(decoyCloud.position.y < dYdecoy + decoyInitY){
             mothership.position.y += driftSpd*mult;
             decoyCloud.position.y += driftSpd*2*mult;
+            cloud2.position.y += driftSpd*1.5*mult;
         }else{
             decoyDrift = false;
         }
@@ -652,6 +665,7 @@ function drifting(){
         if(decoyCloud.position.y > decoyInitY){
             mothership.position.y -= driftSpd*mult;
             decoyCloud.position.y -= driftSpd*2*mult;
+            cloud2.position.y -= driftSpd*1.5*mult;
         }else{
             decoyDrift = true;
         }
@@ -1057,22 +1071,23 @@ function setPers(pos){
 
 function setSkyProps(){
     let sx = 4.2;
-    gLoader.load(cloud,function(o){
-        decoyCloud.copy(o.scene);
-        decoyCloud.scale.x = sx;
-        decoyCloud.scale.y = sx;
-        decoyCloud.scale.z = sx;
-        decoyCloud.position.y = decoyInitY;
-        scene.add(decoyCloud);
-    });
-    gLoader.load(ufo,function(o){
-        mothership.copy(o.scene);
-        mothership.scale.x = sx;
-        mothership.scale.y = sx;
-        mothership.scale.z = sx;
-        mothership.position.y = ufoInitY;
-        scene.add(mothership);
-    });
+    decoyCloud.scale.x = sx;
+    decoyCloud.scale.y = sx;
+    decoyCloud.scale.z = sx;
+    decoyCloud.position.y = decoyInitY;
+    scene.add(decoyCloud);
+
+    cloud2.copy(decoyCloud);
+    cloud2.position.y = stageDim/2;
+    cloud2.rotation.y = Math.PI/4;
+    scene.add(cloud2);
+
+    mothership.position.y = ufoInitY;
+    //let mixer = new THREE.AnimationMixer(mothership);
+    //let action = mixer.clipAction(ufoClip);
+    //action.play();
+    //peepMixers.push(mixer);
+    scene.add(mothership);
 }
 
 //********************** boarding *****************************//
@@ -1295,7 +1310,7 @@ function musicFadeIn(vol,t){
 }
 
 function musicFadeOut(vol,t){
-    let tol = 0.05
+    let tol = 0.005
     let init = music.volume;
     fade = setInterval(()=>{
         if(music.volume <= vol + tol){
@@ -1339,19 +1354,22 @@ function updateMute(){
     }
 }
 
-export function sceneSwitch(){
+export function sceneSwitch(r){
     if(scene2){
         if(!music.muted){
             musicFadeOut(0,1);
             setTimeout(()=>{
                 music.src = bgMusic;
-                musicFadeIn(1,1);
+                musicFadeIn(1,0);
             },2000);
         }else{
             music.src = bgMusic;
         }
+        rend = r;
         rend.setAnimationLoop(anim);
+        interestCam.lookAt(plane.position);
         hitHUD.innerText = '';
+        
         scene2 = false;
         start = true;
     }else{
@@ -1360,16 +1378,17 @@ export function sceneSwitch(){
             musicFadeOut(0,1);
             setTimeout(()=>{
                 music.src = bgMusic2;
-                musicFadeIn(1,1);
-            },2000);
+                musicFadeIn(1,0);
+            },1500);
         }else{
             music.src = bgMusic2;
         }
-        rend.setAnimationLoop(animJet);
+        switchSceneX(rend);
         drawHits();
         drawHP();
         setIntervals();
         scene2 = true;
+        setGo();
     }
     camHud.innerText = setCamText();
 }
@@ -1381,6 +1400,14 @@ function switchCutsceneInit(){
     camCut.position.x += 50;
     camCut.lookAt(mothership.position);
     rend.setAnimationLoop(switchCutscene);
+}
+
+export function getBoost(){
+    if(boosting){
+        return true;
+    }else{
+        return false;
+    }
 }
 
 window.addEventListener('resize',()=>{

@@ -2,20 +2,26 @@ import * as THREE from 'three';
 import {GLTFLoader} from 'three/addons/loaders/GLTFLoader.js';
 import {dirTo,dist,pointOnLine,progress} from './loc.js';
 import {moveJet2,moveJetCam2,jetSpd,fore} from './jetMove.js';
-import {Hostile} from './hostile.js';
-import {sceneSwitch} from './scripty.js';
+import {Hostile,Bullet} from './hostile.js';
+import {sceneSwitch,input,getBoost} from './scripty.js';
 
 const spdHUD = document.getElementById('speed');
 const camHUD = document.getElementById('cam');
 const hitHUD = document.getElementById('hitCt');
 
+let rend = new THREE.WebGLRenderer();
+
 const bg = './graphics/galaxyJ.jpg';
 const ship = './graphics/airship1.glb';
 const eyeB = './graphics/alienEye.glb';
+const ufo = './graphics/ufo2.glb';
+const boss = './graphics/bossShip1l.glb';
+const shot = './graphics/shot.glb';
 
 const lazarSE = './audio/se_laserShotSep.mp3';
 const splodeSE = './audio/se_splodeSpace.mp3';
 const hitSE = './audio/se_shipHit3.mp3';
+const breakSE = './audio/se_ufoBreak.mp3';
 
 const lazarClip = new Audio(lazarSE);
 lazarClip.volume = 0.5;
@@ -28,8 +34,14 @@ const hitClip = new Audio(hitSE);
 lazarClip.volume = 0.8;
 hitClip.loop = false;
 
+const ufoClip = new Audio(breakSE);
+ufoClip.volume = 0.69;
+ufoClip.loop = false;
+
 const gLoader = new GLTFLoader();
 const tLoader = new THREE.TextureLoader();
+
+let loaded = 0;
 
 const bgTex = tLoader.load(bg);
 bgTex.colorSpace = THREE.SRGBColorSpace;
@@ -44,7 +56,12 @@ for (let e = 0; e < 6; e++){
 let jet = new THREE.Object3D();
 let jetSize = new THREE.Vector3();
 let jetload = false;
+let ready = false;
 let go = false;
+
+let mothership = new THREE.Object3D();
+let bossShip = new THREE.Object3D();
+let bossClip = undefined;
 
 let drawDist = 500;
 
@@ -69,7 +86,9 @@ let accel = 0.1;
 let fireCDtime = 0.2;
 let fireCD = false;
 
-let bulletRad = 1;
+let bulletRad = 30;
+let bulletObj = new Bullet();
+//bulletObj = new THREE.Mesh(new THREE.SphereGeometry(bulletRad,3,2),new THREE.MeshBasicMaterial({color: 0xffff00}));
 
 const rocks = [];
 const enemies = [];
@@ -130,14 +149,38 @@ function load(){
         scene.add(jet);
 
         jet.add(cam);
+        loaded++;
         console.log('loaded jet in scene2');
-        go = true;
+    });
+
+    gLoader.load(ufo,function(o){
+        mothership = o.scene;
+        loaded++;
+    });
+
+    gLoader.load(boss,function(o){
+        bossShip = o.scene;
+        bossClip = o.animations[0];
+        let mixer = new THREE.AnimationMixer(bossShip);
+        let action = mixer.clipAction(bossClip);
+        action.play();
+        mixers.push(mixer);
+        loaded++;
     });
 
     gLoader.load(eyeB,function(o){
         eyenemy = o.scene;
         new THREE.Box3().setFromObject(eyenemy).getSize(eyenemySize);
         eyenemyClip = o.animations[0];
+        loaded++;
+    });
+
+    gLoader.load(shot,function(o){
+        bulletObj = o.scene;
+        bulletObj.scale.x = bulletRad;
+        bulletObj.scale.y = bulletRad;
+        bulletObj.scale.z = bulletRad*2;
+        loaded++;
     });
 
     initRocks(rockDensity);
@@ -150,19 +193,77 @@ function load(){
         hitClip.muted = false;
         lazarClip.muted = false;
         splodeClip.muted = false;
-    },2000);
+        ufoClip.muted = false;
+    },1000);
 }
 
-export function animLoop(rend,inp,b){
+export function animLoop(){
     if(!jetload){
         load();
         jetload = true;
+
     }else{
-        addEnemies();
+        if(loaded >= 5){
+            if(!ready){
+                spd = jetSpdBase;
+                mothership.children[0].position.x = 0;
+                mothership.children[1].position.x = 0;
+                mothership.position.x = jet.position.x;
+                mothership.position.y = jet.position.y;
+                mothership.position.z = jet.position.z + drawDist*0.25;
+                scene.add(mothership);
+                rend.render(scene,cam);
+                rend.setAnimationLoop(cutLoop1);
+                console.log('cut start');
+            }else{
+                go = true;
+            }
+        }
+    }
+}
+
+function cutLoop1(){
+    moveJet2(jet,jetSpdBase,[planeX,stageHei]);
+    moveJetCam2(jet,cam,climbSpd,turnSpd,[0,0],planeX,1);
+    mothership.position.z += (jetSpdBase + 1);
+    rend.render(scene,cam);
+    if(dist(jet.position,mothership.position) > drawDist/2 && !ready){
+        ready = true;
+        bossShip.position.copy(mothership.position);
+        bossShip.rotation.x = -Math.PI/2;
+        scene.add(bossShip);
+        ufoClip.play();
+        let int = setInterval(()=>{
+            mothership.children[0].position.x -= 2;
+            mothership.children[1].position.x += 2;
+            if(mothership.children[0].position.x < -drawDist/2){
+                scene.remove(mothership);
+                clearInterval(int);
+                console.log('removed mothership');
+            }
+        },15);
+    }else if(ready){
+        let int2 = setInterval(()=>{
+            if(dist(jet.position,bossShip.position) > drawDist){
+                scene.remove(bossShip);
+                clearInterval(int2);
+                console.log('removed bossship');
+            }else{
+                bossShip.position.z += fore.z * jetSpdMax;
+            }
+        },15);
+        go = true;
+        rend.setAnimationLoop(animLoopMain);
+    }
+}
+
+function animLoopMain(){
+    addEnemies();
         if(go){
             moveJet2(jet,spd,[planeX,stageHei]);
-            moveJetCam2(jet,cam,climbSpd,turnSpd,inp,planeX,1);
-            spd = jetSpd(spd,jetSpdMax,jetSpdBase,accel,b);
+            moveJetCam2(jet,cam,climbSpd,turnSpd,input,planeX,1);
+            let boost = getBoost();
+            spd = jetSpd(spd,jetSpdMax,jetSpdBase,accel,boost);
             for(let m = 0; m < mixers.length; m++){
                 mixers[m].update((Date.now()-prevTime)/1000);
             }
@@ -171,13 +272,11 @@ export function animLoop(rend,inp,b){
         moveBullets();
         enemyCollision(enemies,jetSize.z/2);
         prevTime = Date.now();
-        camHUD.innerText = 'Camera: Space';
         rend.render(scene,cam);
-    }
 }
 
 window.addEventListener('keydown',(e)=>{
-    if(camHUD.innerText == 'Camera: Space'){
+    if(go){
         if(e.key == ' '){
             if(!fireCD){
                 fireCD = true;
@@ -191,7 +290,8 @@ window.addEventListener('keydown',(e)=>{
 });
 
 function fire(){
-    let bullet = new THREE.Mesh(new THREE.SphereGeometry(bulletRad,3,2),new THREE.MeshBasicMaterial({color: 0xffff00}));
+    let bullet = new Bullet(1,bullSpd,1,new THREE.Vector3(fore.x,fore.y,fore.z));
+    bullet.copy(bulletObj);
     bullet.position.copy(jet.position);
     bullets.push(bullet);
     scene.add(bullet);
@@ -200,8 +300,9 @@ function fire(){
 }
 
 function moveBullets(){
+    let t = Date.now();
     for(let b = 0; b < bullets.length; b++){
-        if(dist(jet.position,bullets[b].position) > drawDist){
+        if(bullets[b].fizzle(t)){
             scene.remove(bullets[b]);
             bullets.splice(b,1);
         }else{
@@ -209,9 +310,8 @@ function moveBullets(){
                 scene.remove(bullets[b]);
                 bullets.splice(b,1);
             }else{
-                bullets[b].position.x += fore.x * bullSpd;
-                bullets[b].position.y += fore.y * bullSpd;
-                bullets[b].position.z += fore.z * bullSpd;
+                bullets[b].move();
+                console.log(bullets[b].dir);
             }
         }
         //console.log(bullets.length);
@@ -221,8 +321,8 @@ function moveBullets(){
 function bulletCollision(b,ens,r){
     for(let e = 0; e < ens.length; e++){
         if(dist(b.position,ens[e].position) <= r){
-            splode(b.position,10);
-            damageEnemy(1,ens,e);
+            splode(b.position,b.pwr*10);
+            damageEnemy(b.pwr,ens,e);
             return e;
         }
     }
@@ -358,7 +458,7 @@ function moveEnemies(ens,t=jet.position){
 }
 
 function removeEnemies(){
-    if(camHUD.innerText == 'Camera: Space'){
+    if(go){
         for(let e = 0; e < enemies.length; e++){
             if(enemies[e].position.z < jet.position.z - camDist){
                 scene.remove(enemies[e]);
@@ -395,7 +495,7 @@ function initRocks(d){
 }
 
 function loopRocks(){
-    if(camHUD.innerText == 'Camera: Space'){
+    if(ready){
         for(let r = 0; r < rocks.length; r++){
             if(rocks[r].position.z < jet.position.z - camDist){
             rocks[r].position.z += planeZ;
@@ -431,14 +531,29 @@ export function setIntervals(){
 function reset(s=false){
     removeRocks();
     jet.position.copy(origin);
+    jet.rotation.x = 0;
+    jet.rotation.y = 0;
+    jet.rotation.z = 0;
+
     removeAllEnemies();
     initRocks(rockDensity);
     hits = 0;
     drawHits();
     hp = maxHits;
     drawHP();
-    go = true;
+    ready = false;
     if(s){
-        sceneSwitch();
+        sceneSwitch(rend);
     }
+}
+
+export function setGo(){
+    if(jetload){
+        go = true;
+    }
+}
+
+export function switchSceneX(r){
+    rend = r;
+    rend.setAnimationLoop(animLoop);
 }
