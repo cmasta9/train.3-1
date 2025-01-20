@@ -5,4 +5,4 @@ You can move the camera by clicking and with the arrow keys.
 
 Watch the watchers ride the train from station to station and confront the menace in the sky if you dare.
 
-Do not use assets commercially without permission.
+Do not use assets commercially without permission and/or compensation. You may contact the author at cmasta99@gmail.com for all inquiries.
