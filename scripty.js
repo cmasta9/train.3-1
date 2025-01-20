@@ -4,6 +4,7 @@ import {Passenger} from './passenger.js';
 import {dirTo, dist,pointOnLine,progress} from './loc.js';
 import {moveJet,moveJetCam,jetSpd} from './jetMove.js';
 import {drawHits,drawHP,setIntervals,setGo,switchSceneX} from './scripty2.js';
+import * as music from './music.js';
 
 const bgImg = './graphics/blueSky2.jpg';
 const groundTex = './graphics/grass2.jpg';
@@ -22,20 +23,18 @@ const ufo = './graphics/ufo2.glb';
 
 const bgMusic = './audio/futurescapesOverture4.ogg';
 const bgMusic2 = './audio/futurescapes4.ogg';
-const music = new Audio(bgMusic);
-music.loop = true;
-music.muted = true;
-music.volume = 0;
-let fade = undefined;
+music.setTrack(bgMusic);
+music.init();
 
 let start = false;
 let chase = false;
+
+let beatBoss = false;
 
 const spdHud = document.getElementById('speed');
 const camHud = document.getElementById('cam');
 const camNum = document.getElementById('camNum');
 const hitHUD = document.getElementById('hitCt');
-const muteSymb = document.getElementById('mute');
 const centext = document.getElementById('centext');
 
 const stageDim = 1000;
@@ -128,6 +127,7 @@ let smokeMat = new THREE.MeshLambertMaterial({color: 0xeeeeee});
 let decoyCloud = new THREE.Object3D();
 let cloud2 = new THREE.Object3D();
 let mothership = new THREE.Object3D();
+let mothershipSc = 1.69;
 let dYdecoy = 5;
 let decoyDrift = true;
 
@@ -215,7 +215,9 @@ cam.position.z = origin.z;
 const trainGp = new THREE.Object3D();
 
 window.addEventListener('click',initClick);
-muteSymb.addEventListener('click',toggleMute);
+document.getElementById('mute').addEventListener('click',()=>{
+    music.toggleMute();
+});
 
 //---------------------------- GAME LOOP -----------------------------//
 
@@ -438,7 +440,7 @@ window.addEventListener('keydown', (k)=>{
         */
     }
     if(k.key == 'm'){
-        toggleMute();
+        music.toggleMute();
     }
     if(k.key == 'h'){
         hover = true;
@@ -450,9 +452,9 @@ function initClick(){
         start = true;
         centext.innerText = '';
         hitHUD.innerText = '';
-        music.muted = false;
-        musicFadeIn(1,0);
-        updateMute();
+        music.unmute();
+        music.fadeIn(1,0);
+        music.updateMute();
         window.removeEventListener('click',initClick);
     }
 }
@@ -1070,7 +1072,7 @@ function setPers(pos){
 }
 
 function setSkyProps(){
-    let sx = 4.2;
+    let sx = 6.9;
     decoyCloud.scale.x = sx;
     decoyCloud.scale.y = sx;
     decoyCloud.scale.z = sx;
@@ -1083,10 +1085,7 @@ function setSkyProps(){
     scene.add(cloud2);
 
     mothership.position.y = ufoInitY;
-    //let mixer = new THREE.AnimationMixer(mothership);
-    //let action = mixer.clipAction(ufoClip);
-    //action.play();
-    //peepMixers.push(mixer);
+    mothership.scale.multiplyScalar(mothershipSc);
     scene.add(mothership);
 }
 
@@ -1287,83 +1286,16 @@ function smokeRise(){
     }
 }
 
-function musicFadeIn(vol,t){
-    let tol = 0.05;
-    let init = music.volume;
-    if(music.paused){
-        music.play();
-    }
-    fade = setInterval(()=>{
-        if(music.volume >= vol - tol){
-            clearInterval(fade);
-            fade = undefined;
-        }else{
-            if(music.volume + (vol-init)/10 >= 1 - tol){
-                music.volume = 1;
-                clearInterval(fade);
-                fade = undefined;
-            }else{
-                music.volume += (vol-init)/10;
-            }
-        }
-    },t*100);
-}
-
-function musicFadeOut(vol,t){
-    let tol = 0.005
-    let init = music.volume;
-    fade = setInterval(()=>{
-        if(music.volume <= vol + tol){
-            if(vol <= tol){
-                music.pause();
-            }
-            clearInterval(fade);
-            fade = undefined;
-        }else{
-            if(music.volume - (init-vol)/10 <= tol){
-                music.volume = 0;
-                music.pause();
-                clearInterval(fade);
-                fade = undefined;
-            }else{
-                music.volume -= (init-vol)/10;
-                console.log(music.volume);
-            }
-        }
-    },t*100);
-}
-
-function toggleMute(){
-    if(!fade){
-        if(music.muted){
-            music.muted = false;
-            musicFadeIn(1,0.2);
-        }else{
-            music.muted = true;
-            musicFadeOut(0,0.2);
-        }
-        updateMute();
-    }
-}
-
-function updateMute(){
-    if(music.muted){
-        muteSymb.innerHTML = '&#128263;';
-    }else{
-        muteSymb.innerHTML = '&#128264;';
-    }
-}
-
 export function sceneSwitch(r){
     if(scene2){
-        if(!music.muted){
-            musicFadeOut(0,1);
+        if(!music.muted()){
+            music.fadeOut(0,1);
             setTimeout(()=>{
-                music.src = bgMusic;
-                musicFadeIn(1,0);
+                music.setTrack(bgMusic);
+                music.fadeIn(1,0);
             },2000);
         }else{
-            music.src = bgMusic;
+            music.setTrack(bgMusic);
         }
         rend = r;
         rend.setAnimationLoop(anim);
@@ -1374,21 +1306,20 @@ export function sceneSwitch(r){
         start = true;
     }else{
         start = false;
-        if(!music.muted){
-            musicFadeOut(0,1);
+        if(!music.muted()){
+            music.fadeOut(0,1);
             setTimeout(()=>{
-                music.src = bgMusic2;
-                musicFadeIn(1,0);
+                music.setTrack(bgMusic2);
+                music.fadeIn(1,0);
             },1500);
         }else{
-            music.src = bgMusic2;
+            music.setTrack(bgMusic2);
         }
         switchSceneX(rend);
         drawHits();
         drawHP();
         setIntervals();
         scene2 = true;
-        setGo();
     }
     camHud.innerText = setCamText();
 }
@@ -1408,6 +1339,10 @@ export function getBoost(){
     }else{
         return false;
     }
+}
+
+export function setBossBeat(b){
+    beatBoss = b;
 }
 
 window.addEventListener('resize',()=>{

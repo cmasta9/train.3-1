@@ -1,22 +1,25 @@
 import { Object3D, Vector3 } from "three";
 
 export class Hostile extends Object3D{
-    constructor(hp=1,spd=0.02,power=1,sight=120){
+    constructor(hp=1,spd=0.02,power=1,sight=120,dropProb=0.1){
         super();
         this.hp = hp;
         this.spd = spd;
         this.power = power;
         this.sight = sight;
+        this.dropProb = dropProb;
     }
 }
 
 export class Bullet extends Object3D{
-    constructor(pwr=1,spd=11,lt=1,dir=new Vector3(0,0,1)){
+    constructor(pwr=1,spd=11,lt=2,dir=new Vector3(0,0,1),owner,sc=1){
         super();
         this.pwr = pwr;
         this.spd = spd;
         this.lt = lt;
         this.dir = dir;
+        this.owner = owner;
+        this.sc = sc;
         this.init = Date.now();
     }
 

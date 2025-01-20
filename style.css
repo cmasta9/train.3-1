@@ -62,6 +62,30 @@ body{
     width: fit-content;
 }
 
+#enemyHit{
+    right: 5%;
+    top: 3%;
+    height: 40px;
+    max-width: 200px;
+    background-color: black;
+    color: white;
+    border: 5px;
+    border-color: white;
+}
+
+#bossHP{
+    position: absolute;
+    right: 5%;
+    top: 3%;
+    height: 40px;
+    max-width: 200px;
+    display: block;
+    border: 5px;
+    border-color: black;
+    background-color: red;
+    z-index: 2;
+}
+
 #centext{
     margin-top: 25%;
     margin-inline: 10%;
