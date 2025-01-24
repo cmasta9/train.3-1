@@ -41,7 +41,6 @@ export function fadeOut(vol,t){
                 f = undefined;
             }else{
                 m.volume -= (init-vol)/10;
-                console.log(m.volume);
             }
         }
     },t*100);

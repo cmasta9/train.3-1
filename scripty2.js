@@ -1,7 +1,7 @@
 import * as THREE from 'three';
 import {GLTFLoader} from 'three/addons/loaders/GLTFLoader.js';
 import {dirTo,dist} from './loc.js';
-import {moveJet2,moveJetCam2,jetSpd,fore} from './jetMove.js';
+import {moveJet2,moveJetCam2,jetSpd,getFore} from './jetMove.js';
 import {Hostile,Bullet} from './hostile.js';
 import {sceneSwitch,input,getBoost,setBossBeat} from './scripty.js';
 import * as music from './music.js';
@@ -335,7 +335,7 @@ function cutLoop1(){
                 clearInterval(int2);
                 console.log('removed bossship');
             }else{
-                bossShip.position.z += fore.z * jetSpdMax;
+                bossShip.position.z += getFore().z * jetSpdMax;
             }
         },15);
         go = true;
@@ -420,7 +420,7 @@ window.addEventListener('keydown',(e)=>{
     }
 });
 
-function fire(owner=jet,dir=fore,spd=bullSpd,scale=1){
+function fire(owner=jet,dir=getFore(),spd=bullSpd,scale=1){
     let bullet = new Bullet();
     bullet.copy(bulletObj);
     bullet.spd = spd;
@@ -1222,6 +1222,7 @@ function reset(s=false){
     ready = false;
     clearIntervals();
     removeAllEnemies();
+    interestCam = cam;
     enemyDensity = enemyDensityBase;
     if(s){
         sceneSwitch(rend);

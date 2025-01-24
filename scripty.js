@@ -1,8 +1,8 @@
 import * as THREE from 'three';
 import {GLTFLoader} from 'three/addons/loaders/GLTFLoader.js';
 import {Passenger} from './passenger.js';
-import {dirTo, dist,pointOnLine,progress} from './loc.js';
-import {moveJet,moveJetCam,jetSpd} from './jetMove.js';
+import {dirTo, dist,pointOnLine,progress,raycast,normalize} from './loc.js';
+import {moveJet,moveJetCam,jetSpd,getFore} from './jetMove.js';
 import {drawHits,drawHP,setIntervals,setGo,switchSceneX} from './scripty2.js';
 import * as music from './music.js';
 
@@ -68,6 +68,7 @@ let trackSize = new THREE.Vector3();
 let pSize = new THREE.Vector3();
 let powerSize = new THREE.Vector3();
 let stackSize = new THREE.Vector3();
+let planeSize = new THREE.Vector3();
 let windSize = undefined;
 const trainCars = 3;
 
@@ -111,11 +112,11 @@ let trackObj = new THREE.Object3D();
 let platformObj = new THREE.Object3D();
 let buildingObj = new THREE.Object3D();
 let windmillObj = new THREE.Object3D();
+let planeObj = new THREE.Object3D();
 let peepObj = new THREE.Object3D();
 let doorOpenClip = undefined;
 let peepClip = undefined;
 let windmillClip = undefined;
-let ufoClip = undefined;
 
 let plane = new THREE.Object3D();
 let powerPlant = new THREE.Object3D();
@@ -134,16 +135,18 @@ let decoyDrift = true;
 let person = undefined;
 let persRot = 0;
 let perSize = new THREE.Vector3();
+let face = new THREE.Vector3();
 
 let numPeeps = 10;
 
 let dTime = 0;
 let prevTime = Date.now();
 let lastZ = 0;
+let lastPl = new THREE.Vector3();
 
 let spd = 0.05;
 let perSpd = 0.1;
-let watcherSpd = 0.5;
+let watcherSpd = 1;
 
 let planeSpd = 0.42;
 const planeSpdBase = planeSpd;
@@ -223,6 +226,8 @@ document.getElementById('mute').addEventListener('click',()=>{
 
 rend.render(scene,interestCam);
 rend.setAnimationLoop(anim);
+let spUpdate = 0;
+let speedOm = 0;
 
 function anim(){
     rend.render(scene,interestCam);
@@ -252,10 +257,7 @@ function anim(){
                     }
                 }
             }
-            let speedOm = (trainGp.position.z - lastZ) / dTime * (18/5);
-            //brake.innerText = (speedOm / accel * dTime / (18/5)).toPrecision(2);
-            lastZ = trainGp.position.z;
-            spdHud.innerText = `${Math.abs(speedOm).toPrecision(3)} km/hr`;
+            updateSpdOm();
 
             if(dist(plane.position,mothership.position) < 100){
                 switchCutsceneInit();
@@ -323,9 +325,15 @@ function loadModels(){
         new THREE.Box3().setFromObject(platformObj).getSize(pSize);
         loadProg++;
     });
+    gLoader.load(airship,function(o){
+        planeObj = o.scene;
+        new THREE.Box3().setFromObject(planeObj).getSize(planeSize);
+        loadProg++;
+    });
     gLoader.load(alien,function(o){
         peepObj = o.scene;
         peepClip = o.animations[0];
+        new THREE.Box3().setFromObject(peepObj).getSize(perSize);
         loadProg++;
     });
     gLoader.load(building,function(o){
@@ -339,7 +347,6 @@ function loadModels(){
     });
     gLoader.load(ufo,function(o){
         mothership.copy(o.scene);
-        ufoClip = o.animations[0];
         loadProg++;
     });
     gLoader.load(cloud,function(o){
@@ -349,7 +356,7 @@ function loadModels(){
 }
 
 function loadLoop(){
-    if(loadProg > 8){
+    if(loadProg > 9){
         loadingComp = true;
         setTracks();
         setTrain(3);
@@ -375,8 +382,6 @@ function loadLoop(){
 function doubleTap(){
     console.log('logged a doubleTap');
 }
-
-let cooldown = undefined;
 
 window.addEventListener('keydown', (k)=>{
     //console.log(`${k.key} down`);
@@ -738,14 +743,21 @@ function moveCam3(){
 
 function moveCamP(){
     person.rotation.y = persRot;
-
+    let dir = new THREE.Vector3();
     if(input[1] != 0){
-        person.position.x += input[1]*watcherSpd*Math.cos(person.rotation.y);
-        person.position.z -= input[1]*watcherSpd*Math.sin(person.rotation.y);
+        dir.x += input[1]*Math.cos(person.rotation.y);
+        dir.z -= input[1]*Math.sin(person.rotation.y);
     }
     if(input[0] != 0){
-        person.position.x += input[0]*watcherSpd*Math.sin(person.rotation.y);
-        person.position.z += input[0]*watcherSpd*Math.cos(person.rotation.y);
+        dir.x += input[0]*Math.sin(person.rotation.y);
+        dir.z += input[0]*Math.cos(person.rotation.y);
+    }
+    dir = normalize(dir);
+    if(!raycast(scene,person.position,dirTo(person.position,new THREE.Vector3(person.position.x+dir.x,person.position.y,person.position.z)),Math.abs(dir.x*watcherSpd*2),perSize.x/2)){
+        person.position.x += dir.x*watcherSpd;
+    }
+    if(!raycast(scene,person.position,dirTo(person.position,new THREE.Vector3(person.position.x,person.position.y,person.position.z+dir.z)),Math.abs(dir.z*watcherSpd*2),perSize.z/2)){
+        person.position.z += dir.z*watcherSpd;
     }
     if(person.position.y > ground.position.y + perSize.y/2){
         person.position.y -= watcherSpd;
@@ -930,19 +942,14 @@ function loadWindmills(){
 }
 
 function loadAirship(){
-    gLoader.load(airship,function(o){
-        let obj = o.scene;
-        obj.position.x = apos[atarget].x;
-        obj.position.y = apos[atarget].y;
-        obj.position.z = apos[atarget].z;
-
-        plane.copy(obj);
-
-        let up = new THREE.Object3D();
-        up.position.copy(new THREE.Vector3(0,1,0));
-        plane.add(up);
-        scene.add(plane);
-    });
+    plane.copy(planeObj);
+    plane.position.x = apos[atarget].x;
+    plane.position.y = apos[atarget].y;
+    plane.position.z = apos[atarget].z;
+    let up = new THREE.Object3D();
+    up.position.copy(new THREE.Vector3(0,1,0));
+    plane.add(up);
+    scene.add(plane);
 }
 
 function initCams(){
@@ -1021,9 +1028,6 @@ function setTrain(n){
 }
 
 function setPeeps(n){
-
-    new THREE.Box3().setFromObject(peepObj).getSize(perSize);
-
     for(let i = 0; i < n; i++){
         const obj = new THREE.Object3D();
         obj.copy(peepObj);
@@ -1343,6 +1347,25 @@ export function getBoost(){
 
 export function setBossBeat(b){
     beatBoss = b;
+}
+
+function updateSpdOm(){
+    if(spUpdate >= 5){
+        if(interestCam != camA && interestCam != camA2){
+            speedOm = (trainGp.position.z - lastZ) / dTime * (18/5)/5;
+            //brake.innerText = (speedOm / accel * dTime / (18/5)).toPrecision(2);
+            lastZ = trainGp.position.z;
+            spdHud.innerText = `${Math.abs(speedOm).toPrecision(3)} km/hr`;
+            spUpdate = 0;
+        }else{
+            speedOm = dist(plane.position,lastPl) / dTime * (18/5)/5;
+            lastPl.copy(plane.position);
+            spUpdate = 0;
+        }
+    }else{
+        spdHud.innerText = `${Math.abs(speedOm).toPrecision(3)} km/hr`;
+    }
+    spUpdate++;
 }
 
 window.addEventListener('resize',()=>{

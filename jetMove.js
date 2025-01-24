@@ -1,14 +1,14 @@
 import {Object3D,Vector3} from 'three';
 import {dirTo,dist} from './loc.js';
 
-let thresh = 0.02;
+let thresh = 0.01;
 let maxInc = 0.9;
 let maxInc2 = 0.5;
-export let fore = new Vector3();
+let fore = new Vector3();
 let up = new Vector3();
 let rt = new Vector3();
 
-export function moveJet(p,spd,gY=0,r=500,turnSpd=0.1,child=0){
+export function moveJet(p,spd,gY=0,r=500,turnSpd=0.1,child=1){
     let targ = new Vector3();
     p.getWorldDirection(targ);
     if(dist(new Vector3(),new Vector3(p.position.x+targ.x*spd,p.position.y+targ.y*spd,p.position.z+targ.z*spd)) < r){
@@ -18,7 +18,7 @@ export function moveJet(p,spd,gY=0,r=500,turnSpd=0.1,child=0){
         }
         p.position.z += targ.z * spd;
     }else{
-        console.log(dist(new Vector3(),new Vector3(p.position.x+targ.x*spd,p.position.y+targ.y*spd,p.position.z+targ.z*spd)));
+        //console.log(dist(new Vector3(),new Vector3(p.position.x+targ.x*spd,p.position.y+targ.y*spd,p.position.z+targ.z*spd)));
         p.children[child].getWorldPosition(up);
         p.rotateOnWorldAxis(dirTo(p.position,up),turnSpd);
     }
@@ -53,11 +53,10 @@ export function jetSpd(spd,max,base,acc,b){
     return spd;
 }
 
-export function moveJetCam(p,c,turnSpd,inp,child=0){
+export function moveJetCam(p,c,turnSpd,inp,child=1){
     p.children[child].getWorldPosition(up);
     p.getWorldDirection(fore);
     rt.crossVectors(fore,dirTo(p.position,up));
-    //console.log(fore,rt);
     if(inp[1] != 0){
         if(inp[1] > 0){
             if(fore.dot(new Vector3(0,1,0)) > -maxInc){
@@ -108,4 +107,8 @@ export function moveJetCam2(p,c,climbSpd,turnSpd,inp,xBound,child=0){
         p.rotateOnWorldAxis(fore,rt.dot(new Vector3(0,1,0)));
     }
     c.lookAt(p.position);
+}
+
+export function getFore(){
+    return fore;
 }
