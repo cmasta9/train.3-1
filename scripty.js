@@ -457,6 +457,7 @@ function initClick(){
         start = true;
         centext.innerText = '';
         hitHUD.innerText = '';
+        document.getElementById('control').innerText = '';
         music.unmute();
         music.fadeIn(1,0);
         music.updateMute();

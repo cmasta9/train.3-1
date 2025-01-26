@@ -301,6 +301,7 @@ export function animLoop(){
                 rend.setAnimationLoop(cutLoop1);
                 console.log('cut start');
             }else{
+                document.getElementById('control').innerText = 'Press Space to shoot, B to boost'
                 go = true;
             }
         }
@@ -313,6 +314,7 @@ function cutLoop1(){
     mothership.position.z += (jetSpdBase + 1);
     rend.render(scene,cam);
     if(dist(jet.position,mothership.position) > drawDist/2 && !ready){
+        document.getElementById('control').innerText = 'Press Space to shoot, B to boost'
         ready = true;
         bossShip.hp = maxBossHp;
         bossShip.position.copy(mothership.position);
@@ -333,6 +335,7 @@ function cutLoop1(){
             if(dist(jet.position,bossShip.position) > drawDist){
                 scene.remove(bossShip);
                 clearInterval(int2);
+                document.getElementById('control').innerText = '';
                 console.log('removed bossship');
             }else{
                 bossShip.position.z += getFore().z * jetSpdMax;

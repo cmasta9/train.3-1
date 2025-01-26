@@ -87,9 +87,17 @@ body{
 }
 
 #centext{
-    margin-top: 25%;
-    margin-inline: 10%;
+    top: 35%;
+    margin-inline: 5%;
     text-align: center;
     font-size: 36px;
+    width: fit-content;
+}
+
+#control{
+    top: 75%;
+    margin-inline: 36%;
+    text-align: center;
+    font-size: 22px;
     width: fit-content;
 }
