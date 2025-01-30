@@ -36,6 +36,7 @@ const camHud = document.getElementById('cam');
 const camNum = document.getElementById('camNum');
 const hitHUD = document.getElementById('hitCt');
 const centext = document.getElementById('centext');
+const conText = document.getElementById('control');
 
 const stageDim = 1000;
 const scene = new THREE.Scene();
@@ -135,7 +136,6 @@ let decoyDrift = true;
 let person = undefined;
 let persRot = 0;
 let perSize = new THREE.Vector3();
-let face = new THREE.Vector3();
 
 let numPeeps = 10;
 
@@ -154,6 +154,8 @@ const planeMaxSpd = 5;
 let planeAccel = 0.05;
 let boosting = false;
 let hover = false;
+let flying = false;
+let boardedPlane = false;
 
 let planeHeight = stageDim/2*(2/5);
 let decoyInitY = stageDim/2*(4/5);
@@ -210,6 +212,7 @@ loadModels();
 let scene2 = false;
 const origin = new THREE.Vector3(0,camHeight,0);
 const porigin = new THREE.Vector3(origin.x-camDist,origin.y,origin.z);
+const planeOrigin = new THREE.Vector3(69,1,0);
 let atarget = 0;
 const apos = [new THREE.Vector3(0,planeHeight,planeHeight),new THREE.Vector3(-planeHeight,planeHeight,planeHeight/2),new THREE.Vector3(-planeHeight,planeHeight,-planeHeight/2),new THREE.Vector3(0,planeHeight,-planeHeight), new THREE.Vector3(planeHeight,planeHeight,-planeHeight/2), new THREE.Vector3(planeHeight,planeHeight,planeHeight/2)];
 cam.position.x = origin.x + camDist;
@@ -236,8 +239,25 @@ function anim(){
     }else{
         if(start){
             moveTrain();
-            if(!hover){
-                movePlane();
+            if(flying && !hover && boardedPlane){
+                if(interestCam == camA2 || interestCam == camP){
+                    if(dist(plane.position,mothership.position) < 100){
+                        switchCutsceneInit();
+                    }
+                    movePlane(planeOrigin);
+                }else{
+                    movePlane();
+                }
+            }else if(!flying && interestCam == camP){
+                watcherConts();
+            }else if(flying && !boardedPlane){
+                if(dist(plane.position,planeOrigin) > planeSpd){
+                    movePlane(planeOrigin);
+                }else{
+                    flying = false;
+                    plane.rotation.x = 0;
+                    plane.rotation.z = 0;
+                }
             }
             if(stop){
                 for(let j = 0; j < peeps.length; j++){
@@ -258,10 +278,6 @@ function anim(){
                 }
             }
             updateSpdOm();
-
-            if(dist(plane.position,mothership.position) < 100){
-                switchCutsceneInit();
-            }
         }else{
             hitHUD.innerText = 'Click to Start';
         }
@@ -397,58 +413,56 @@ window.addEventListener('keydown', (k)=>{
     if((k.key == 'ArrowDown' || k.key == 's') && Math.abs(input[1]) < maxInput){
         input[1] -= 1;
     }
-    if(k.key == '0'){
-        interestCam = camS0;
-        camHud.innerText = setCamText();
-    }
-    if(k.key == '1'){
-        interestCam = camS1;
-        camHud.innerText = setCamText();
-        camNum.innerHTML = '0 <b>1</b> 2 3 4 5';
-    }
-    if(k.key == '2'){
-        interestCam = cam;
-        camHud.innerText = setCamText();
-        camNum.innerHTML = '0 1 <b>2</b> 3 4 5';
-    }
-    if(k.key == '3'){
-        interestCam = camP;
-        camHud.innerText = setCamText();
-        camNum.innerHTML = '0 1 2 <b>3</b> 4 5';
-    }
-    if(k.key == '4'){
-        interestCam = camA;
-        camHud.innerText = setCamText();
-        camNum.innerHTML = '0 1 2 3 <b>4</b> 5';
-    }
-    if(k.key == '5'){
-        interestCam = camA2;
-        resetCam();
-        interestCam.lookAt(plane.position);
-        camNum.innerHTML = '0 1 2 3 4 <b>5</b>';
-    }
-    if(k.key == 'r'){
-        resetCam();
-    }
+
     if(k.key == 'b'){
         boosting = true;
-    }
-    if(k.key == 'p'){
-        /*
-        if(!cooldown){
-            cooldown = setTimeout(()=>{
-                cooldown = undefined;  
-            },5000);
-            sceneSwitch();
-            camHud.innerText = setCamText();
-        }
-        */
     }
     if(k.key == 'm'){
         music.toggleMute();
     }
-    if(k.key == 'h'){
-        hover = true;
+
+    if(!scene2){
+        if(k.key == '0'){
+            interestCam = camS0;
+            camHud.innerText = setCamText();
+        }
+        if(k.key == '1'){
+            interestCam = camS1;
+            camHud.innerText = setCamText();
+            camNum.innerHTML = '0 <b>1</b> 2 3 4 5';
+        }
+        if(k.key == '2'){
+            interestCam = cam;
+            camHud.innerText = setCamText();
+            camNum.innerHTML = '0 1 <b>2</b> 3 4 5';
+        }
+        if(k.key == '3'){
+            interestCam = camP;
+            camHud.innerText = setCamText();
+            camNum.innerHTML = '0 1 2 <b>3</b> 4 5';
+        }
+        if(k.key == '4'){
+            interestCam = camA;
+            camHud.innerText = setCamText();
+            camNum.innerHTML = '0 1 2 3 <b>4</b> 5';
+        }
+        if(k.key == '5'){
+            if(flying){
+                interestCam = camA2;
+                resetCam();
+                interestCam.lookAt(plane.position);
+                camNum.innerHTML = '0 1 2 3 4 <b>5</b>';
+            }
+        }
+        if(k.key == 'r'){
+            resetCam();
+        }
+        if(k.key == 'p'){
+            boardPlane();
+        }
+        if(k.key == 'h'){
+            hover = true;
+        }
     }
 });
 
@@ -457,7 +471,9 @@ function initClick(){
         start = true;
         centext.innerText = '';
         hitHUD.innerText = '';
-        document.getElementById('control').innerText = '';
+        conText.innerText = '';
+        interestCam = camP;
+        camHud.innerText = setCamText();
         music.unmute();
         music.fadeIn(1,0);
         music.updateMute();
@@ -583,7 +599,6 @@ window.addEventListener('mousemove',(e)=>{
             moveCam2();
         }else if (interestCam == camP){
             persRot += e.movementX*spd;
-            moveCamP();
         }else{
             camRot += e.movementX*spd;
             moveCam3();
@@ -600,7 +615,6 @@ window.addEventListener('touchmove',(e)=>{
             moveCam2();
         }else if (interestCam == camP){
             persRot += dx*spd;
-            moveCamP();
         }else if (interestCam == camA2){
 
         }else{
@@ -707,27 +721,28 @@ function switchDir(){
 
 function moveCam(){
     if(input[1] != 0){
-        if(interestCam == camP){
-            moveCamP();
-        }else if(interestCam == camA){
+        if(interestCam == camA){
             moveCamA();
-        }else if(interestCam == camA2){
+        }else if(interestCam == camA2 || (interestCam == camP && boardedPlane)){
             moveJetCam(plane,camA2,spd,input);
-        }else{
+        }else if(interestCam != camP){
             camDist += spd * input[1];
             moveCam2();
         }
     }
     if(input[0] != 0){
-        if(interestCam == camP){
-            moveCamP();
-        }else if(interestCam == camA2){
+        if(interestCam == camA2 || (interestCam == camP && boardedPlane)){
             moveJetCam(plane,camA2,spd,input);
-        }else{
+        }else if(interestCam != camP){
             origin.z += spd * input[0];
             moveCam2();
         }
         //console.log(Math.cos(new THREE.Vector3(1,0,0).angleTo(dirF)),new THREE.Vector3(0,0,1).angleTo(dirF));
+    }
+    if(interestCam == camP){
+        if(!boardedPlane){
+            moveCamP();
+        }
     }
 }
 
@@ -754,14 +769,19 @@ function moveCamP(){
         dir.z += input[0]*Math.cos(person.rotation.y);
     }
     dir = normalize(dir);
-    if(!raycast(scene,person.position,dirTo(person.position,new THREE.Vector3(person.position.x+dir.x,person.position.y,person.position.z)),Math.abs(dir.x*watcherSpd*2),perSize.x/2)){
-        person.position.x += dir.x*watcherSpd;
-    }
-    if(!raycast(scene,person.position,dirTo(person.position,new THREE.Vector3(person.position.x,person.position.y,person.position.z+dir.z)),Math.abs(dir.z*watcherSpd*2),perSize.z/2)){
-        person.position.z += dir.z*watcherSpd;
+    if(input[1] != 0 || input[0] != 0){
+        if(!raycast(scene,person.position,dirTo(person.position,new THREE.Vector3(person.position.x+dir.x,person.position.y,person.position.z)),Math.abs(dir.x*watcherSpd*2),perSize.x/2)){
+            person.position.x += dir.x*watcherSpd;
+        }
+        if(!raycast(scene,person.position,dirTo(person.position,new THREE.Vector3(person.position.x,person.position.y,person.position.z+dir.z)),Math.abs(dir.z*watcherSpd*2),perSize.z/2)){
+            person.position.z += dir.z*watcherSpd;
+        }
     }
     if(person.position.y > ground.position.y + perSize.y/2){
         person.position.y -= watcherSpd;
+        if(person.position.y < ground.position.y + perSize.y/2){
+            person.position.y = ground.position.y + perSize.y/2;
+        }
     }
 }
 
@@ -777,29 +797,35 @@ function movePlane(t=undefined){
         targ = apos[atarget];
     }
     if(interestCam != camA2 || chase){
-        if (dist(plane.position,targ) >= planeSpd){
-            let dir = dirTo(plane.position,targ);
-            plane.position.x += dir.x * planeSpd;
-            plane.position.z += dir.z * planeSpd;
-            plane.position.y += dir.y * planeSpd;
-            if(!t){
-                if(atarget >= apos.length - 1){
-                    plane.lookAt(pointOnLine(apos[atarget],apos[0],progress(apos[atarget-1],apos[atarget],plane.position)));
-                    //console.log(progress(apos[atarget-1],apos[atarget],plane.position));
-                }else if (atarget > 0){
-                    plane.lookAt(pointOnLine(apos[atarget],apos[atarget+1],progress(apos[atarget-1],apos[atarget],plane.position)));
-                    //console.log(progress(apos[atarget-1],apos[atarget],plane.position))
-                }else{
-                    plane.lookAt(pointOnLine(apos[atarget],apos[atarget+1],progress(apos[apos.length-1],apos[atarget],plane.position)));
-                    //console.log(progress(apos[apos.length-1],apos[atarget],plane.position));
-                }
+        if(dist(plane.position,targ) >= planeSpd){
+            if(interestCam == camP && boardedPlane && !chase){
+                moveJet(plane,planeSpd,ground.y,stageDim/2-20);
             }else{
-                plane.lookAt(targ);
+                let dir = dirTo(plane.position,targ);
+                plane.position.x += dir.x * planeSpd;
+                plane.position.z += dir.z * planeSpd;
+                plane.position.y += dir.y * planeSpd;
+                if(!t){
+                    if(atarget >= apos.length - 1){
+                        plane.lookAt(pointOnLine(apos[atarget],apos[0],progress(apos[atarget-1],apos[atarget],plane.position)));
+                        //console.log(progress(apos[atarget-1],apos[atarget],plane.position));
+                    }else if (atarget > 0){
+                        plane.lookAt(pointOnLine(apos[atarget],apos[atarget+1],progress(apos[atarget-1],apos[atarget],plane.position)));
+                        //console.log(progress(apos[atarget-1],apos[atarget],plane.position))
+                    }else{
+                        plane.lookAt(pointOnLine(apos[atarget],apos[atarget+1],progress(apos[apos.length-1],apos[atarget],plane.position)));
+                        //console.log(progress(apos[apos.length-1],apos[atarget],plane.position));
+                    }
+                }else{
+                    plane.lookAt(targ);
+                }
             }
         }else{
-            atarget++;
-            if(atarget >= apos.length){
-                atarget = 0;
+            if(!t){
+                atarget++;
+                if(atarget >= apos.length){
+                    atarget = 0;
+                }
             }
         }
     }else{
@@ -944,9 +970,13 @@ function loadWindmills(){
 
 function loadAirship(){
     plane.copy(planeObj);
+    /*
     plane.position.x = apos[atarget].x;
     plane.position.y = apos[atarget].y;
     plane.position.z = apos[atarget].z;
+    */
+    planeOrigin.y = planeSize.y/2;
+    plane.position.copy(planeOrigin);
     let up = new THREE.Object3D();
     up.position.copy(new THREE.Vector3(0,1,0));
     plane.add(up);
@@ -957,17 +987,21 @@ function initCams(){
     
     initStationCams()
 
-    camP.position.copy(new THREE.Vector3(0,camHeight,0));
-    person.rotation.y = persRot;
-    camP.rotation.y = -Math.PI/2;
-
-    person.add(camP);
+    initPersonCam();
 
     camA.position.copy(new THREE.Vector3(0,camDist,0));
     camA.rotation.x = -Math.PI/2;
     plane.add(camA);
     camA2.position.copy(new THREE.Vector3(0,0,-camDist));
     plane.add(camA2);
+}
+
+function initPersonCam(){
+    camP.position.copy(new THREE.Vector3(0,camHeight,0));
+    person.rotation.y = persRot;
+    camP.rotation.y = -Math.PI/2;
+
+    person.add(camP);
 }
 
 function initStationCams(){
@@ -1304,7 +1338,7 @@ export function sceneSwitch(r){
         }
         rend = r;
         rend.setAnimationLoop(anim);
-        interestCam.lookAt(plane.position);
+        camA2.lookAt(plane.position);
         hitHUD.innerText = '';
         
         scene2 = false;
@@ -1352,7 +1386,7 @@ export function setBossBeat(b){
 
 function updateSpdOm(){
     if(spUpdate >= 5){
-        if(interestCam != camA && interestCam != camA2){
+        if(interestCam != camA && interestCam != camA2 && !(interestCam == camP && boardedPlane)){
             speedOm = (trainGp.position.z - lastZ) / dTime * (18/5)/5;
             //brake.innerText = (speedOm / accel * dTime / (18/5)).toPrecision(2);
             lastZ = trainGp.position.z;
@@ -1367,6 +1401,39 @@ function updateSpdOm(){
         spdHud.innerText = `${Math.abs(speedOm).toPrecision(3)} km/hr`;
     }
     spUpdate++;
+}
+
+function watcherConts(){
+    if(!flying && dist(person.position,plane.position) < planeSize.z/2){
+        conText.innerText = 'Press P to pilot.';
+    }else{
+        conText.innerText = '';
+    }
+}
+
+function boardPlane(){
+    if(!flying && dist(person.position,plane.position) < planeSize.z/2){
+        flying = true;
+        boardedPlane = true;
+        person.position.copy(new THREE.Vector3(0,perSize.y/2,planeSize.z/4));
+        plane.add(person);
+        person.rotation.y = -Math.PI/2;
+        interestCam = camA2;
+        resetCam();
+        interestCam.lookAt(plane.position);
+        conText.innerText = 'Use the arrow keys to move and B to boost.';
+        setTimeout(()=>{
+            conText.innerText = '';
+        },2000);
+    }else if(flying && boardedPlane){
+        plane.remove(person);
+        person.position.copy(plane.position);
+        scene.add(person);
+        //initPersonCam();
+        interestCam = camP;
+        resetCam();
+        boardedPlane = false;
+    }
 }
 
 window.addEventListener('resize',()=>{

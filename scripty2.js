@@ -9,6 +9,7 @@ import * as music from './music.js';
 const spdHUD = document.getElementById('speed');
 const camHUD = document.getElementById('cam');
 const hitHUD = document.getElementById('hitCt');
+const camNum = document.getElementById('camNum');
 let bossHUD = undefined;
 let bossHP = undefined;
 
@@ -21,6 +22,7 @@ const ufo = './graphics/ufo2.glb';
 const boss = './graphics/bossShip1l2.glb';
 const shot = './graphics/shot.glb';
 const merkaba = './graphics/energy.glb';
+const alien = './graphics/alienBeing.glb';
 
 const lazarSE = './audio/se_laserShotSep.mp3';
 const splodeSE = './audio/se_splodeSpace.mp3';
@@ -81,6 +83,11 @@ let jetColor = [];
 let jetload = false;
 let ready = false;
 let go = false;
+
+let person = new THREE.Object3D();
+let perSize = new THREE.Vector3();
+let perClip = undefined;
+let camHeight = 1.6;
 
 let mothership = new THREE.Object3D();
 let maxBossHp = 2000;
@@ -178,8 +185,10 @@ let origin = new THREE.Vector3(0,stageHei/2,0);
 const light = new THREE.AmbientLight({color: 0xffffff});
 scene.add(light);
 const cam = new THREE.PerspectiveCamera(75,window.innerWidth/window.innerHeight,0.1,drawDist);
+const camP = new THREE.PerspectiveCamera(75,window.innerWidth/window.innerHeight,0.1,drawDist);
 const bossCam = new THREE.PerspectiveCamera(75,window.innerWidth/window.innerHeight,0.1,drawDist);
 let interestCam = cam;
+let camBuff = interestCam;
 let camOrigin = new THREE.Vector3(0,camHei,-camDist);
 cam.position.copy(camOrigin);
 let prevTime = Date.now();
@@ -200,9 +209,8 @@ function load(){
     boomClip.play();
 
     gLoader.load(ship,function(o){
-        let obj = o.scene;
-        obj.position.copy(origin);
-        jet.copy(obj);
+        jet.copy(o.scene);
+        jet.position.copy(origin);
         let up = new THREE.Object3D();
         up.position.copy(new THREE.Vector3(0,1,0));
         new THREE.Box3().setFromObject(jet).getSize(jetSize);
@@ -222,8 +230,19 @@ function load(){
     });
 
     gLoader.load(ufo,function(o){
-        mothership = o.scene;
+        mothership.copy(o.scene);
         mothership.scale.copy(new THREE.Vector3(bossScale,bossScale,bossScale));
+        loaded++;
+    });
+
+    gLoader.load(alien,function(o){
+        person.copy(o.scene);
+        new THREE.Box3().setFromObject(person).getSize(perSize);
+        perClip = o.animations[0];
+        let mixer = new THREE.AnimationMixer(person);
+        let action = mixer.clipAction(perClip);
+        action.play();
+        mixers.push(mixer);
         loaded++;
     });
 
@@ -288,22 +307,27 @@ export function animLoop(){
         jetload = true;
 
     }else{
-        if(loaded >= 6){
+        if(loaded >= 7){
             if(!ready){
                 spd = jetSpdBase;
+                person.position.copy(new THREE.Vector3(0,perSize.y/2,jetSize.z/4));
+                person.rotation.y = -Math.PI/2;
+                camP.position.copy(new THREE.Vector3(0,camHeight,0));
+                camP.rotation.y = -Math.PI/2;
+                person.add(camP);
+                scene.add(person);
+                jet.add(person);
                 mothership.children[0].position.x = 0;
                 mothership.children[1].position.x = 0;
                 mothership.position.x = jet.position.x;
                 mothership.position.y = jet.position.y;
                 mothership.position.z = jet.position.z + drawDist*0.25;
                 scene.add(mothership);
-                rend.render(scene,cam);
+                rend.render(scene,interestCam);
                 rend.setAnimationLoop(cutLoop1);
                 console.log('cut start');
-            }else{
-                document.getElementById('control').innerText = 'Press Space to shoot, B to boost'
-                go = true;
             }
+            setCamText();
         }
     }
 }
@@ -312,9 +336,12 @@ function cutLoop1(){
     moveJet2(jet,jetSpdBase,[planeX,stageHei]);
     moveJetCam2(jet,cam,climbSpd,turnSpd,[0,0],planeX,1);
     mothership.position.z += (jetSpdBase + 1);
-    rend.render(scene,cam);
+    rend.render(scene,interestCam);
     if(dist(jet.position,mothership.position) > drawDist/2 && !ready){
-        document.getElementById('control').innerText = 'Press Space to shoot, B to boost'
+        document.getElementById('control').innerText = 'Press Space to shoot, B to boost';
+        setTimeout(()=>{
+            document.getElementById('control').innerText = '';
+        },2000);
         ready = true;
         bossShip.hp = maxBossHp;
         bossShip.position.copy(mothership.position);
@@ -335,7 +362,6 @@ function cutLoop1(){
             if(dist(jet.position,bossShip.position) > drawDist){
                 scene.remove(bossShip);
                 clearInterval(int2);
-                document.getElementById('control').innerText = '';
                 console.log('removed bossship');
             }else{
                 bossShip.position.z += getFore().z * jetSpdMax;
@@ -402,6 +428,7 @@ function enemyInt2(){
         setTimeout(()=>{
             music.setTrack(bgMusic3);
             music.fadeIn(1,0);
+            camBuff = interestCam;
             interestCam = bossCam;
             bossRotX(Math.PI,1);
             bossCyc = 1;
@@ -419,6 +446,22 @@ window.addEventListener('keydown',(e)=>{
                     fireCD = false;
                 },fireCDtime*1000);
             }
+        }
+        if(e.key == '3'){
+            if(interestCam != bossCam){
+                interestCam = camP;
+            }else{
+                camBuff = camP;
+            }
+            setCamText();
+        }
+        if(e.key == '5'){
+            if(interestCam != bossCam){
+                interestCam = cam;
+            }else{
+                camBuff = cam;
+            }
+            setCamText();
         }
     }
 });
@@ -744,7 +787,8 @@ function bossAction(){
                     if(bossCyc > 0){
                         bossCyc++;
                     }
-                    interestCam = cam;
+                    interestCam = camBuff;
+                    setCamText();
                     console.log('cycles begin');
                 }else{
                     console.log(rotter,bossCyc);
@@ -890,7 +934,8 @@ function bossAction(){
         }else if(bossCyc == -4){
             bossAct = setTimeout(()=>{
                 battleStart = false;
-                interestCam = cam;
+                interestCam = camBuff;
+                setCamText();
                 enemyDensity = enemyDensityBase;
                 music.setTrack(bgMusic2);
                 music.fadeIn(1,0);
@@ -1211,8 +1256,12 @@ function reset(s=false){
     jet.rotation.z = 0;
 
     scene.remove(lazar);
-    bossHUD.remove();
-    bossHP.remove();
+    if(bossHUD){
+        bossHUD.remove();
+    }
+    if(bossHP){
+        bossHP.remove();
+    }
     setBossBeat(bossBeat);
     bossAppear = false;
     battleStart = false;
@@ -1225,10 +1274,20 @@ function reset(s=false){
     ready = false;
     clearIntervals();
     removeAllEnemies();
-    interestCam = cam;
+    interestCam = camBuff;
     enemyDensity = enemyDensityBase;
     if(s){
         sceneSwitch(rend);
+    }
+}
+
+function setCamText(){
+    if(interestCam == cam){
+        camHUD.innerText = 'Camera: Space';
+        camNum.innerHTML = '3 <b>5</b>';
+    }else if(interestCam == camP){
+        camHUD.innerText = 'Camera: Cockpit';
+        camNum.innerHTML = '<b>3</b> 5';
     }
 }
 
