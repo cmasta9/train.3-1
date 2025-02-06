@@ -20,6 +20,8 @@ const sstack = './graphics/powerstack.glb';
 const alien = './graphics/alienBeing.glb';
 const cloud = './graphics/cloud.glb';
 const ufo = './graphics/ufo2.glb';
+const desk = './graphics/officeDesk2.glb';
+const bern = './graphics/bernie2.glb';
 
 const bgMusic = './audio/futurescapesOverture4.ogg';
 const bgMusic2 = './audio/futurescapes4.ogg';
@@ -47,6 +49,7 @@ const camP = new THREE.PerspectiveCamera(90,window.innerWidth/window.innerHeight
 const camA = new THREE.PerspectiveCamera(90,window.innerWidth/window.innerHeight,0.1,stageDim);
 const camA2 = new THREE.PerspectiveCamera(90,window.innerWidth/window.innerHeight,0.1,stageDim);
 const camCut = new THREE.PerspectiveCamera(90,window.innerWidth/window.innerHeight,0.1,stageDim);
+const camOff = new THREE.PerspectiveCamera(90,window.innerWidth/window.innerHeight,0.1,stageDim);
 const tLoader = new THREE.TextureLoader();
 const gLoader = new GLTFLoader();
 const bgTex = tLoader.load(bgImg);
@@ -96,7 +99,6 @@ let touchX = undefined;
 const maxInput = 1;
 export let input = [0,0];
 
-//const scenery = [];
 const tracks = [];
 const train = [];
 const platforms = [];
@@ -104,6 +106,7 @@ const trainMixers = [];
 const peeps = [];
 const peepMixers = [];
 const placeHolders = [];
+const buildings = [];
 const scenery = [];
 const smoke = [];
 
@@ -115,9 +118,13 @@ let buildingObj = new THREE.Object3D();
 let windmillObj = new THREE.Object3D();
 let planeObj = new THREE.Object3D();
 let peepObj = new THREE.Object3D();
+let deskObj = new THREE.Object3D();
 let doorOpenClip = undefined;
 let peepClip = undefined;
 let windmillClip = undefined;
+
+let buildingSize = new THREE.Vector3();
+let deskSize = new THREE.Vector3();
 
 let plane = new THREE.Object3D();
 let powerPlant = new THREE.Object3D();
@@ -134,7 +141,7 @@ let dYdecoy = 5;
 let decoyDrift = true;
 
 let person = undefined;
-let persRot = 0;
+let persRot = Math.PI;
 let perSize = new THREE.Vector3();
 
 let numPeeps = 10;
@@ -166,6 +173,8 @@ let trainSpd = 0.5;
 let accel = 0.016;
 let driftSpd = 0.001;
 let driftHei = 0.042;
+
+let oTime = 1;
 
 let skyRot = 0.001;
 
@@ -207,12 +216,13 @@ let approach = false;
 let stop = false;
 let idle = undefined;
 let ready = false;
+let bernin = false;
 
 loadModels();
 let scene2 = false;
 const origin = new THREE.Vector3(0,camHeight,0);
 const porigin = new THREE.Vector3(origin.x-camDist,origin.y,origin.z);
-const planeOrigin = new THREE.Vector3(69,1,0);
+const planeOrigin = new THREE.Vector3(-69,1,0);
 let atarget = 0;
 const apos = [new THREE.Vector3(0,planeHeight,planeHeight),new THREE.Vector3(-planeHeight,planeHeight,planeHeight/2),new THREE.Vector3(-planeHeight,planeHeight,-planeHeight/2),new THREE.Vector3(0,planeHeight,-planeHeight), new THREE.Vector3(planeHeight,planeHeight,-planeHeight/2), new THREE.Vector3(planeHeight,planeHeight,planeHeight/2)];
 cam.position.x = origin.x + camDist;
@@ -220,81 +230,118 @@ cam.position.y = origin.y;
 cam.position.z = origin.z;
 const trainGp = new THREE.Object3D();
 
-window.addEventListener('click',initClick);
+let focusPos = new THREE.Vector3();
+let focusPts = [];
+let camSpdInit = 0.005;
+let thetaRot = 0;
+let focPt = 0;
+
+interestCam = camOff;
+
+hitHUD.addEventListener('click',initClick);
 document.getElementById('mute').addEventListener('click',()=>{
     music.toggleMute();
 });
 
 //---------------------------- GAME LOOP -----------------------------//
 
-rend.render(scene,interestCam);
-rend.setAnimationLoop(anim);
+//rend.render(scene,interestCam);
+rend.setAnimationLoop(animPre);
 let spUpdate = 0;
 let speedOm = 0;
+hitHUD.innerText = 'Click Here\nto Start';
 
-function anim(){
-    rend.render(scene,interestCam);
+function animPre(){
     if(!loadingComp){
         loadLoop();
     }else{
-        if(start){
-            moveTrain();
-            if(flying && !hover && boardedPlane){
-                if(interestCam == camA2 || interestCam == camP){
-                    if(dist(plane.position,mothership.position) < 100){
-                        switchCutsceneInit();
-                    }
-                    movePlane(planeOrigin);
-                }else{
-                    movePlane();
+        if(focPt != 2){
+            rotCam(focusPos,2,perSize.y/2,thetaRot);
+            thetaRot += camSpdInit;
+            if(thetaRot > Math.PI*2){
+                focPt++;
+                if(focPt >= focusPts.length){
+                    focPt = 0;
                 }
-            }else if(!flying && interestCam == camP){
-                watcherConts();
-            }else if(flying && !boardedPlane){
-                if(dist(plane.position,planeOrigin) > planeSpd){
-                    movePlane(planeOrigin);
-                }else{
-                    flying = false;
-                    plane.rotation.x = 0;
-                    plane.rotation.z = 0;
-                }
+                focusPos.copy(focusPts[focPt]);
+                thetaRot -= Math.PI*2;
             }
-            if(stop){
-                for(let j = 0; j < peeps.length; j++){
-                    if(peeps[j].destiny && !peeps[j].boarded){
-                        if(dist(peeps[j].position,peeps[j].destiny) > perSpd){
-                            let dis = dirTo(peeps[j].position,peeps[j].destiny);
-                            peeps[j].position.x += dis.x * perSpd;
-                            peeps[j].position.y += dis.y * perSpd;
-                            peeps[j].position.z += dis.z * perSpd;
-                        }
-                    }
-                }
-            }else{
-                for(let j = 0; j < peeps.length; j++){
-                    if(peeps[j].boarded){
-                        peeps[j].position.z = trainGp.position.z + peeps[j].offset;
-                    }
-                }
-            }
-            updateSpdOm();
         }else{
-            hitHUD.innerText = 'Click to Start';
+            if(focusPos.y < decoyCloud.position.y - 20){
+                interestCam.position.x = trainGp.position.x;
+                interestCam.position.z = trainGp.position.z;
+                interestCam.position.y = engineSize.y*2;
+                focusPos.y += 0.5;
+                interestCam.lookAt(focusPos);
+            }else{
+                focPt++;
+                if(focPt >= focusPts.length){
+                    focPt = 0;
+                }
+                focusPos.copy(focusPts[focPt]);
+            }
         }
-        moveCam();
+        trainLoop();
         dTime = (Date.now() - prevTime)/1000;
+        prevTime = Date.now();
         if(stop){
             for(let i = 0; i < trainMixers.length; i++){
-                trainMixers[i].update((Date.now() - prevTime)/1000);
+                trainMixers[i].update(dTime);
             }
         }
         for(let j = 0; j < peepMixers.length; j++){
             peepMixers[j].update(dTime);
         }
-        prevTime = Date.now();
         drifting();
         sky.rotation.y += skyRot;
+        rend.render(scene,interestCam);
     }
+}
+
+function rotCam(p,dxz,dy,t){
+    interestCam.position.x = p.x + dxz*Math.sin(t);
+    interestCam.position.z = p.z + dxz*Math.cos(t);
+    interestCam.position.y = p.y + dy;
+    interestCam.lookAt(p);
+}
+
+function anim(){
+    trainLoop();
+    if(flying && !hover && boardedPlane){
+        if(interestCam == camA2 || interestCam == camP){
+            if(dist(plane.position,mothership.position) < 100){
+                switchCutsceneInit();
+            }
+            movePlane(planeOrigin);
+        }else{
+            movePlane();
+        }
+    }else if(!flying && interestCam == camP){
+        watcherConts();
+    }else if(flying && !boardedPlane){
+        if(dist(plane.position,planeOrigin) > planeSpd){
+            movePlane(planeOrigin);
+        }else{
+            flying = false;
+            plane.rotation.x = 0;
+            plane.rotation.z = 0;
+        }
+    }
+    updateSpdOm();
+    moveCam();
+    dTime = (Date.now() - prevTime)/1000;
+    prevTime = Date.now();
+    if(stop){
+        for(let i = 0; i < trainMixers.length; i++){
+            trainMixers[i].update(dTime);
+        }
+    }
+    for(let j = 0; j < peepMixers.length; j++){
+        peepMixers[j].update(dTime);
+    }
+    drifting();
+    sky.rotation.y += skyRot;
+    rend.render(scene,interestCam);
 }
 
 function animJet(){
@@ -354,6 +401,12 @@ function loadModels(){
     });
     gLoader.load(building,function(o){
         buildingObj = o.scene;
+        new THREE.Box3().setFromObject(buildingObj).getSize(buildingSize);
+        loadProg++;
+    });
+    gLoader.load(desk,function(o){
+        deskObj = o.scene;
+        new THREE.Box3().setFromObject(deskObj).getSize(deskSize);
         loadProg++;
     });
     gLoader.load(windmill,function(o){
@@ -372,26 +425,28 @@ function loadModels(){
 }
 
 function loadLoop(){
-    if(loadProg > 9){
+    if(loadProg > 10){
         loadingComp = true;
         setTracks();
         setTrain(3);
-        setPlatforms();
         loadPower();
         loadWindmills();
         loadBuildings();
+        setOffice();
+        setPlatforms();
         loadAirship();
         setPeeps(numPeeps);
-        setPers(porigin);
+        setPers();
         setSkyProps();
         initCams();
         camHud.innerText = setCamText();
         origin.z = 10;
         trainGp.add(cam);
         camRot = 3/2 * Math.PI;
-        moveCam2();
+        focusPos.copy(focusPts[focPt]);
+        //moveCam2();
     }else{
-        camHud.innerText = 'Loading...';
+        camHud.innerText = `Loading... ${loadProg/11*100}%`;
     }
 }
 
@@ -401,67 +456,69 @@ function doubleTap(){
 
 window.addEventListener('keydown', (k)=>{
     //console.log(`${k.key} down`);
-    if((k.key == 'ArrowRight' || k.key == 'd') && Math.abs(input[0]) < maxInput){
-        input[0] += 1;
-    }
-    if((k.key == 'ArrowLeft' || k.key == 'a') && Math.abs(input[0]) < maxInput){
-        input[0] -= 1;
-    }
-    if((k.key == 'ArrowUp' || k.key == 'w') && Math.abs(input[1]) < maxInput){
-        input[1] += 1;
-    }
-    if((k.key == 'ArrowDown' || k.key == 's') && Math.abs(input[1]) < maxInput){
-        input[1] -= 1;
-    }
-
-    if(k.key == 'b'){
-        boosting = true;
-    }
-    if(k.key == 'm'){
-        music.toggleMute();
-    }
-
-    if(!scene2){
-        if(k.key == '0'){
-            interestCam = camS0;
-            camHud.innerText = setCamText();
+    if(start || scene2){
+        if((k.key == 'ArrowRight' || k.key == 'd') && Math.abs(input[0]) < maxInput){
+            input[0] += 1;
         }
-        if(k.key == '1'){
-            interestCam = camS1;
-            camHud.innerText = setCamText();
-            camNum.innerHTML = '0 <b>1</b> 2 3 4 5';
+        if((k.key == 'ArrowLeft' || k.key == 'a') && Math.abs(input[0]) < maxInput){
+            input[0] -= 1;
         }
-        if(k.key == '2'){
-            interestCam = cam;
-            camHud.innerText = setCamText();
-            camNum.innerHTML = '0 1 <b>2</b> 3 4 5';
+        if((k.key == 'ArrowUp' || k.key == 'w') && Math.abs(input[1]) < maxInput){
+            input[1] += 1;
         }
-        if(k.key == '3'){
-            interestCam = camP;
-            camHud.innerText = setCamText();
-            camNum.innerHTML = '0 1 2 <b>3</b> 4 5';
+        if((k.key == 'ArrowDown' || k.key == 's') && Math.abs(input[1]) < maxInput){
+            input[1] -= 1;
         }
-        if(k.key == '4'){
-            interestCam = camA;
-            camHud.innerText = setCamText();
-            camNum.innerHTML = '0 1 2 3 <b>4</b> 5';
+    
+        if(k.key == 'b'){
+            boosting = true;
         }
-        if(k.key == '5'){
-            if(flying){
-                interestCam = camA2;
-                resetCam();
-                interestCam.lookAt(plane.position);
-                camNum.innerHTML = '0 1 2 3 4 <b>5</b>';
+        if(k.key == 'm'){
+            music.toggleMute();
+        }
+    
+        if(!scene2){
+            if(k.key == '0'){
+                interestCam = camS0;
+                camHud.innerText = setCamText();
             }
-        }
-        if(k.key == 'r'){
-            resetCam();
-        }
-        if(k.key == 'p'){
-            boardPlane();
-        }
-        if(k.key == 'h'){
-            hover = true;
+            if(k.key == '1'){
+                interestCam = camS1;
+                camHud.innerText = setCamText();
+                camNum.innerHTML = '0 <b>1</b> 2 3 4 5';
+            }
+            if(k.key == '2'){
+                interestCam = cam;
+                camHud.innerText = setCamText();
+                camNum.innerHTML = '0 1 <b>2</b> 3 4 5';
+            }
+            if(k.key == '3'){
+                interestCam = camP;
+                camHud.innerText = setCamText();
+                camNum.innerHTML = '0 1 2 <b>3</b> 4 5';
+            }
+            if(k.key == '4'){
+                interestCam = camA;
+                camHud.innerText = setCamText();
+                camNum.innerHTML = '0 1 2 3 <b>4</b> 5';
+            }
+            if(k.key == '5'){
+                if(flying){
+                    interestCam = camA2;
+                    resetCam();
+                    interestCam.lookAt(plane.position);
+                    camNum.innerHTML = '0 1 2 3 4 <b>5</b>';
+                }
+            }
+            if(k.key == 'r'){
+                resetCam();
+            }
+            if(k.key == 'p'){
+                boardPlane();
+            }
+            if(k.key == 'h'){
+                hover = true;
+            }
         }
     }
 });
@@ -477,6 +534,7 @@ function initClick(){
         music.unmute();
         music.fadeIn(1,0);
         music.updateMute();
+        rend.setAnimationLoop(anim);
         window.removeEventListener('click',initClick);
     }
 }
@@ -516,6 +574,9 @@ function resetCam(){
         if(interestCam == cam){
             moveCam2();
         }
+        if(interestCam == camP && !flying){
+            person.position.copy(porigin);
+        }
         camHud.innerText = setCamText();
 }
 
@@ -549,8 +610,10 @@ function setCamText(){
 }
 
 window.addEventListener('mousedown',(e)=>{
-    e.preventDefault();
-    mouseDown = true;
+    if(start){
+        e.preventDefault();
+        mouseDown = true;
+    }
 });
 
 window.addEventListener('mouseup',()=>{
@@ -563,32 +626,36 @@ window.addEventListener('touchend',(e)=>{
 });
 
 window.addEventListener('click',(e)=>{
-    e.preventDefault();
-    if(tapCounter){
-        doubleTap();
-        clearTimeout(tapCounter);
-        tapCounter = undefined;
-    }else{
-        tapCounter = setTimeout(()=>{
+    if(start){
+        e.preventDefault();
+        if(tapCounter){
+            doubleTap();
             clearTimeout(tapCounter);
             tapCounter = undefined;
-        },doubleTapThresh*1000);
+        }else{
+            tapCounter = setTimeout(()=>{
+                clearTimeout(tapCounter);
+                tapCounter = undefined;
+            },doubleTapThresh*1000);
+        }
     }
 });
 
 window.addEventListener('touchstart',(e)=>{
-    e.preventDefault();
-    mouseDown = true;
-    touchX = e.touches[0].clientX;
-    if(tapCounter){
-        doubleTap();
-        clearTimeout(tapCounter);
-        tapCounter = undefined;
-    }else{
-        tapCounter = setTimeout(()=>{
+    if(start){
+        e.preventDefault();
+        mouseDown = true;
+        touchX = e.touches[0].clientX;
+        if(tapCounter){
+            doubleTap();
             clearTimeout(tapCounter);
             tapCounter = undefined;
-        },doubleTapThresh*1000);
+        }else{
+            tapCounter = setTimeout(()=>{
+                clearTimeout(tapCounter);
+                tapCounter = undefined;
+            },doubleTapThresh*1000);
+        }
     }
 });
 
@@ -623,6 +690,28 @@ window.addEventListener('touchmove',(e)=>{
         }
     }
 });
+
+function trainLoop(){
+    moveTrain();
+    if(stop){
+        for(let j = 0; j < peeps.length; j++){
+            if(peeps[j].destiny && !peeps[j].boarded){
+                if(dist(peeps[j].position,peeps[j].destiny) > perSpd){
+                    let dis = dirTo(peeps[j].position,peeps[j].destiny);
+                    peeps[j].position.x += dis.x * perSpd;
+                    peeps[j].position.y += dis.y * perSpd;
+                    peeps[j].position.z += dis.z * perSpd;
+                }
+            }
+        }
+    }else{
+        for(let j = 0; j < peeps.length; j++){
+            if(peeps[j].boarded){
+                peeps[j].position.z = trainGp.position.z + peeps[j].offset;
+            }
+        }
+    }
+}
 
 function moveTrain(){
     if(!stop){
@@ -778,7 +867,13 @@ function moveCamP(){
         }
     }
     if(person.position.y > ground.position.y + perSize.y/2){
-        person.position.y -= watcherSpd;
+        if(!raycast(scene,person.position,new THREE.Vector3(0,-1,0),watcherSpd,-perSize.y/2)){
+            person.position.y -= watcherSpd;
+        }else{
+            if(!raycast(scene,person.position,new THREE.Vector3(0,-1,0),0.02,-perSize.y/2)){
+                person.position.y -= 0.02;
+            }
+        }
         if(person.position.y < ground.position.y + perSize.y/2){
             person.position.y = ground.position.y + perSize.y/2;
         }
@@ -830,6 +925,7 @@ function movePlane(t=undefined){
         }
     }else{
         moveJet(plane,planeSpd,ground.y,stageDim/2-20);
+        loadBern();
     }
     planeSpd = jetSpd(planeSpd,planeMaxSpd,planeSpdBase,planeAccel,boosting);
 }
@@ -912,7 +1008,11 @@ function loadBuildings(){
         obj.copy(buildingObj);
         if(i < buildingNum/2){
             obj.position.x = stageDim/2*xRat;
-            obj.position.y = ground.position.y - Math.round(Math.random()*skylineVar);
+            if(i == 1){
+                obj.position.y = ground.position.y;
+            }else{
+                obj.position.y = ground.position.y - Math.round(Math.random()*skylineVar);
+            }
             obj.position.z = (stageDim/buildingNum * i * Math.pow(-1,i))*zRat;
         }else if(i < buildingNum){
             obj.position.x = -stageDim/2*xRat;
@@ -935,9 +1035,31 @@ function loadBuildings(){
             obj.position.y = ground.position.y - Math.round(Math.random()*skylineVar);
             obj.position.z = stageDim/buildingNum/mult1 * (i-buildingNum-buildingNum/mult1-buildingNum/mult2/2) * Math.pow(-1,i);
         }
-        scenery.push(obj);
+        buildings.push(obj);
         scene.add(obj);
     }
+}
+
+function setOffice(b=0){
+    let desk = new THREE.Object3D();
+    desk.copy(deskObj);
+    desk.position.x = buildings[b].position.x;
+    desk.position.z = buildings[b].position.z;
+    desk.position.y = buildings[b].position.y + deskSize.y/2;
+    console.log(desk.position);
+    let peeper = new THREE.Object3D();
+    peeper.copy(peepObj);
+    peeper.position.copy(desk.position);
+    peeper.position.y += 0.5;
+
+    scene.add(desk);
+    scene.add(peeper);
+
+    let mixer = new THREE.AnimationMixer(peeper);
+    let clip = mixer.clipAction(peepClip);
+    clip.play();
+    peepMixers.push(mixer);
+    focusPts.push(peeper.position);
 }
 
 function loadWindmills(){
@@ -953,13 +1075,18 @@ function loadWindmills(){
         obj.position.x = stageDim/2*xRat*Math.pow(-1,i+1);
         obj.position.y = windSize.y/2;
         obj.position.z = (-stageDim/2 + stageDim*(i/windmillNum))*zRat;
-        if(i % 2 == 1){
-            obj.rotation.y = Math.PI;
-        }
 
         let mixer = new THREE.AnimationMixer(obj);
         let action = mixer.clipAction(windmillClip);
         action.time = Math.random();
+
+        if(i % 2 == 1){
+            obj.rotation.y = Math.PI;
+            action.setDuration(-oTime*2);
+        }else{
+            action.setDuration(oTime*2);
+        }
+
         action.play();
 
         scenery.push(obj);
@@ -1063,14 +1190,21 @@ function setTrain(n){
 }
 
 function setPeeps(n){
+    let pop = 0;
     for(let i = 0; i < n; i++){
         const obj = new THREE.Object3D();
         obj.copy(peepObj);
-        peepPlace(obj);
+        pop += peepPlace(obj);
+    }
+    if(pop > 0){
+        focusPts.push(new THREE.Vector3(platforms[1].position.x,4,platforms[1].position.z));
+    }else{
+        focusPts.push(new THREE.Vector3(platforms[0].position.x,4,platforms[0].position.z));
     }
 }
 
 function peepPlace(p){
+    let ret = 0;
     let station = Math.round(Math.random());
     let randX = Math.random() * (pSize.x - stationXoff - stationXoff2);
     let randZ = Math.random() * (pSize.z - 2*stationZoff);
@@ -1079,10 +1213,12 @@ function peepPlace(p){
         p.position.z = platforms[station].position.z - pSize.z/2 + randZ + stationZoff;
         p.position.y = statY;
         p.rotation.y = Math.PI;
+        ret = -1;
     }else{
         p.position.x = platforms[station].position.x + (pSize.x - stationXoff2)/2 - randX - stationXoff;
         p.position.z = platforms[station].position.z + pSize.z/2 - randZ - stationZoff;
         p.position.y = statY;
+        ret = 1;
     }
     let peep = new Passenger('anon',p.position);
     peep.copy(p);
@@ -1093,9 +1229,15 @@ function peepPlace(p){
     peepMixers.push(mixer);
     peeps.push(peep);
     scene.add(peep);
+    return ret;
 }
 
-function setPers(pos){
+function setPers(p){
+    let pos = p;
+    if(!pos){
+        pos = new THREE.Vector3(buildings[0].position.x-buildingSize.x/2,ground.position.y+perSize.y/2,buildings[0].position.z);
+        porigin.copy(pos);
+    }
     const obj = peepObj;
     obj.position.x = pos.x;
     obj.position.y = pos.y;
@@ -1126,12 +1268,14 @@ function setSkyProps(){
     mothership.position.y = ufoInitY;
     mothership.scale.multiplyScalar(mothershipSc);
     scene.add(mothership);
+
+    let pos = new THREE.Vector3(decoyCloud.position.x,10,decoyCloud.position.z);
+    focusPts.push(pos);
 }
 
 //********************** boarding *****************************//
 
 function openDoors(){
-    let oTime = 1;
     for(let d = 0; d < trainMixers.length; d++){
         let action = trainMixers[d].clipAction(doorOpenClip);
         action.setLoop(THREE.LoopOnce);
@@ -1408,6 +1552,27 @@ function watcherConts(){
         conText.innerText = 'Press P to pilot.';
     }else{
         conText.innerText = '';
+    }
+}
+
+function loadBern(p=undefined){
+    if(!bernin){
+        let pos = p;
+        if(!pos){
+            pos = new THREE.Vector3();
+            pos.copy(buildings[8].position);
+            pos.y = buildings[8].position.y + buildingSize.y + 0.2;
+        }
+        if(dist(plane.position,pos) < 42){
+            bernin = true;
+            gLoader.load(bern,function(o){
+                let b = o.scene;
+                b.scale.copy(new THREE.Vector3(1.2,1.2,1.2));
+                b.position.copy(pos);
+                b.rotation.y = Math.PI;
+                scene.add(b);
+            });
+        }
     }
 }
 
