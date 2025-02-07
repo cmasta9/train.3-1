@@ -93,7 +93,7 @@ let statY = 1.75;
 let doorDist = 14;
 let carOffIn = 1.5;
 
-let ticketPrice = 10;
+let ticketPrice = 0;
 
 let mouseDown = false;
 const doubleTapThresh = 0.42;
