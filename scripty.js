@@ -3,7 +3,7 @@ import {GLTFLoader} from 'three/addons/loaders/GLTFLoader.js';
 import {Passenger} from './passenger.js';
 import {dirTo, dist,pointOnLine,progress,raycast,normalize} from './loc.js';
 import {moveJet,moveJetCam,jetSpd,getFore} from './jetMove.js';
-import {drawHits,drawHP,setIntervals,setGo,switchSceneX} from './scripty2.js';
+import {drawHits,drawHP,setIntervals,setGo,switchSceneX, animLoop} from './scripty2.js';
 import * as music from './music.js';
 
 const bgImg = './graphics/blueSky2.jpg';
@@ -70,6 +70,7 @@ const xTrack = 0;
 let engineSize = new THREE.Vector3();
 let carSize = new THREE.Vector3();
 let trackSize = new THREE.Vector3();
+let trainSize = new THREE.Vector3();
 let pSize = new THREE.Vector3();
 let powerSize = new THREE.Vector3();
 let stackSize = new THREE.Vector3();
@@ -91,6 +92,8 @@ let stationZoff = 3;
 let statY = 1.75;
 let doorDist = 14;
 let carOffIn = 1.5;
+
+let ticketPrice = 10;
 
 let mouseDown = false;
 const doubleTapThresh = 0.42;
@@ -118,7 +121,7 @@ let platformObj = new THREE.Object3D();
 let buildingObj = new THREE.Object3D();
 let windmillObj = new THREE.Object3D();
 let planeObj = new THREE.Object3D();
-let peepObj = new THREE.Object3D();
+let peepObj = new Passenger();
 let deskObj = new THREE.Object3D();
 let doorOpenClip = undefined;
 let peepClip = undefined;
@@ -141,9 +144,9 @@ let mothershipSc = 1.69;
 let dYdecoy = 5;
 let decoyDrift = true;
 
-let person = undefined;
-let persRot = Math.PI;
+let person = new Passenger();
 let perSize = new THREE.Vector3();
+let maxHealth = 3;
 
 let numPeeps = 10;
 
@@ -208,6 +211,7 @@ let loadProg = 0;
 let camRot = Math.PI/2;
 let camDist = 30;
 let camHeight = 1.6;
+let fPersonCam = new THREE.Vector3(0,camHeight,0);
 
 let interestCam = cam;
 
@@ -218,6 +222,7 @@ let stop = false;
 let idle = undefined;
 let ready = false;
 let bernin = false;
+let dead = false;
 
 loadModels();
 let scene2 = false;
@@ -346,6 +351,12 @@ function anim(){
     rend.render(scene,interestCam);
 }
 
+function upDead(){
+    sky.rotation.y += skyRot;
+    interestCam.rotation.z += 0.0042;
+    rend.render(scene,interestCam);
+}
+
 function animJet(){
     animLoop(rend,input,boosting);
 }
@@ -396,7 +407,7 @@ function loadModels(){
         loadProg++;
     });
     gLoader.load(alien,function(o){
-        peepObj = o.scene;
+        peepObj.copy(o.scene);
         peepClip = o.animations[0];
         new THREE.Box3().setFromObject(peepObj).getSize(perSize);
         loadProg++;
@@ -438,7 +449,8 @@ function loadLoop(){
         setPlatforms();
         loadAirship();
         setPeeps(numPeeps);
-        setPers();
+        person = setPers();
+        person.health = maxHealth;
         setSkyProps();
         loadTrophy();
         initCams();
@@ -459,7 +471,7 @@ function doubleTap(){
 
 window.addEventListener('keydown', (k)=>{
     //console.log(`${k.key} down`);
-    if(start || scene2){
+    if(start || scene2 && !dead){
         if((k.key == 'ArrowRight' || k.key == 'd') && Math.abs(input[0]) < maxInput){
             input[0] += 1;
         }
@@ -579,6 +591,7 @@ function resetCam(){
         }
         if(interestCam == camP && !flying){
             person.position.copy(porigin);
+            initPersonCam();
         }
         camHud.innerText = setCamText();
 }
@@ -668,7 +681,7 @@ window.addEventListener('mousemove',(e)=>{
             camRot += e.movementX*spd;
             moveCam2();
         }else if (interestCam == camP){
-            persRot += e.movementX*spd;
+            person.rotation.y += e.movementX*spd;
         }else{
             camRot += e.movementX*spd;
             moveCam3();
@@ -684,7 +697,7 @@ window.addEventListener('touchmove',(e)=>{
             camRot += dx*spd/5;
             moveCam2();
         }else if (interestCam == camP){
-            persRot += dx*spd;
+            person.rotation.y += dx*spd;
         }else if (interestCam == camA2){
 
         }else{
@@ -850,15 +863,15 @@ function moveCam3(){
 }
 
 function moveCamP(){
-    person.rotation.y = persRot;
     let dir = new THREE.Vector3();
+    let persRo = person.rotation.y;
     if(input[1] != 0){
-        dir.x += input[1]*Math.cos(person.rotation.y);
-        dir.z -= input[1]*Math.sin(person.rotation.y);
+        dir.x += input[1]*Math.cos(persRo);
+        dir.z -= input[1]*Math.sin(persRo);
     }
     if(input[0] != 0){
-        dir.x += input[0]*Math.sin(person.rotation.y);
-        dir.z += input[0]*Math.cos(person.rotation.y);
+        dir.x += input[0]*Math.sin(persRo);
+        dir.z += input[0]*Math.cos(persRo);
     }
     dir = normalize(dir);
     if(input[1] != 0 || input[0] != 0){
@@ -906,13 +919,10 @@ function movePlane(t=undefined){
                 if(!t){
                     if(atarget >= apos.length - 1){
                         plane.lookAt(pointOnLine(apos[atarget],apos[0],progress(apos[atarget-1],apos[atarget],plane.position)));
-                        //console.log(progress(apos[atarget-1],apos[atarget],plane.position));
                     }else if (atarget > 0){
                         plane.lookAt(pointOnLine(apos[atarget],apos[atarget+1],progress(apos[atarget-1],apos[atarget],plane.position)));
-                        //console.log(progress(apos[atarget-1],apos[atarget],plane.position))
                     }else{
                         plane.lookAt(pointOnLine(apos[atarget],apos[atarget+1],progress(apos[apos.length-1],apos[atarget],plane.position)));
-                        //console.log(progress(apos[apos.length-1],apos[atarget],plane.position));
                     }
                 }else{
                     plane.lookAt(targ);
@@ -951,7 +961,6 @@ function setPlatforms(){
     stationHold(platform2,stationXoff,-doorDist);
     stationHold(platform2,stationXoff,0);
     stationHold(platform2,stationXoff,doorDist);
-    //console.log(platform2.position);
     scene.add(platform);
     scene.add(platform2);
     platforms.push(platform);
@@ -963,7 +972,6 @@ function stationHold(s,Xoff,Zoff){
     p.position.x = s.position.x + Xoff;
     p.position.y = statY;
     p.position.z = s.position.z + Zoff;
-    //console.log(p.position);
     placeHolders.push(p);
     scene.add(p);
 }
@@ -1049,7 +1057,6 @@ function setOffice(b=0){
     desk.position.x = buildings[b].position.x;
     desk.position.z = buildings[b].position.z;
     desk.position.y = buildings[b].position.y + deskSize.y/2;
-    console.log(desk.position);
     let peeper = new THREE.Object3D();
     peeper.copy(peepObj);
     peeper.position.copy(desk.position);
@@ -1127,9 +1134,13 @@ function initCams(){
 }
 
 function initPersonCam(){
-    camP.position.copy(new THREE.Vector3(0,camHeight,0));
-    person.rotation.y = persRot;
+    camP.position.copy(fPersonCam);
+    person.rotation.x = 0;
+    person.rotation.y = Math.PI;
+    person.rotation.z = 0;
+    camP.rotation.x = 0;
     camP.rotation.y = -Math.PI/2;
+    camP.rotation.z = 0;
 
     person.add(camP);
 }
@@ -1189,13 +1200,14 @@ function setTrain(n){
     trainGp.add(tail);
     train.push(tail);
 
+    trainSize = new THREE.Vector3(engineSize.x,engineSize.y,2*engineSize.z+n*carSize.z-2*distOffset);
     scene.add(trainGp);
 }
 
 function setPeeps(n){
     let pop = 0;
     for(let i = 0; i < n; i++){
-        const obj = new THREE.Object3D();
+        const obj = new Passenger();
         obj.copy(peepObj);
         pop += peepPlace(obj);
     }
@@ -1241,18 +1253,19 @@ function setPers(p){
         pos = new THREE.Vector3(buildings[0].position.x-buildingSize.x/2,ground.position.y+perSize.y/2,buildings[0].position.z);
         porigin.copy(pos);
     }
-    const obj = peepObj;
+    let obj = new Passenger();
+    obj.copy(peepObj);
     obj.position.x = pos.x;
     obj.position.y = pos.y;
     obj.position.z = pos.z;
-    obj.rotation.y = persRot;
+    obj.rotation.y = Math.PI/2;
     let mixer = new THREE.AnimationMixer(obj);
     let action = mixer.clipAction(peepClip);
     action.time = Math.random();
     action.play();
     peepMixers.push(mixer);
-    person = obj;
     scene.add(obj);
+    return obj;
 }
 
 function setSkyProps(){
@@ -1345,7 +1358,6 @@ function getClosestHold(p){
                 closest = i;
             }
         }catch(e){
-            console.log('placeholders OOB',e);
             return -1;
         }
     }
@@ -1413,7 +1425,7 @@ function boarding(){
 function boardTrain(){
     console.log('boarding...');
     for(let p = 0; p < peeps.length; p++){
-        if(peeps[p].board > -1){
+        if(peeps[p].board > -1 && peeps[p].spend(ticketPrice) >= 0){
             peeps[p].destiny = new THREE.Vector3(trainGp.position.x,carSize.y/2-carOffIn,trainGp.position.z + engineSize.z + carSize.z*peeps[p].board);
             //console.log(passengers[p].board,passengers[p].destiny);
         }
@@ -1569,10 +1581,39 @@ function updateSpdOm(){
 
 function watcherConts(){
     if(!flying && dist(person.position,plane.position) < planeSize.z/2){
-        conText.innerText = 'Press P to pilot.';
+        conText.innerText = 'Press P to pilot and disembark.';
+    }else if (beatBoss && dist(person.position,trophyOrigin) < planeSize.z/2){
+        conText.innerText = 'Congratulations for protecting the city.';
+    }else if(person.position.x < trackSize.x/2 && person.position.x > -trackSize.x/2){
+        if(dist(person.position,trainGp.position) < trainSize.z && person.position.z >= trainGp.position.z){
+            if(Math.abs(speedOm) > 20){
+                conText.innerText = person.damage(3);
+            }
+        }
     }else{
         conText.innerText = '';
     }
+    if(!dead && person.health <= 0){
+        death();
+    }
+}
+
+function death(){
+    dead = true;
+    rend.setAnimationLoop(upDead);
+    centext.style.marginInline = '40%';
+    centext.innerText = 'Failure...';
+    person.rotation.z = Math.PI/2;
+    camP.position.copy(new THREE.Vector3(6.9,0,0));
+    camP.lookAt(person.position);
+    interestCam = camP;
+    setTimeout(()=>{
+        person.health = maxHealth;
+        resetCam();
+        centext.innerText = '';
+        dead = false;
+        rend.setAnimationLoop(anim);
+    },3000);
 }
 
 function loadBern(p=undefined){
