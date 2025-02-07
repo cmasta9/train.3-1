@@ -22,6 +22,7 @@ const cloud = './graphics/cloud.glb';
 const ufo = './graphics/ufo2.glb';
 const desk = './graphics/officeDesk2.glb';
 const bern = './graphics/bernie2.glb';
+const trophy = './graphics/trophy.glb';
 
 const bgMusic = './audio/futurescapesOverture4.ogg';
 const bgMusic2 = './audio/futurescapes4.ogg';
@@ -223,6 +224,7 @@ let scene2 = false;
 const origin = new THREE.Vector3(0,camHeight,0);
 const porigin = new THREE.Vector3(origin.x-camDist,origin.y,origin.z);
 const planeOrigin = new THREE.Vector3(-69,1,0);
+const trophyOrigin = new THREE.Vector3(69,0,0);
 let atarget = 0;
 const apos = [new THREE.Vector3(0,planeHeight,planeHeight),new THREE.Vector3(-planeHeight,planeHeight,planeHeight/2),new THREE.Vector3(-planeHeight,planeHeight,-planeHeight/2),new THREE.Vector3(0,planeHeight,-planeHeight), new THREE.Vector3(planeHeight,planeHeight,-planeHeight/2), new THREE.Vector3(planeHeight,planeHeight,planeHeight/2)];
 cam.position.x = origin.x + camDist;
@@ -438,6 +440,7 @@ function loadLoop(){
         setPeeps(numPeeps);
         setPers();
         setSkyProps();
+        loadTrophy();
         initCams();
         camHud.innerText = setCamText();
         origin.z = 10;
@@ -1525,7 +1528,24 @@ export function getBoost(){
 }
 
 export function setBossBeat(b){
-    beatBoss = b;
+    if(b){
+        localStorage.setItem('beat','true');
+        loadTrophy();
+    }
+}
+
+function loadTrophy(){
+    console.log('beat' + localStorage.getItem('beat'));
+    if(localStorage.getItem('beat') == 'true'){
+        if(!beatBoss){
+            beatBoss = true;
+            gLoader.load(trophy,function(o){
+                let obj = o.scene;
+                obj.position.copy(trophyOrigin);
+                scene.add(obj);
+            });
+        }
+    }
 }
 
 function updateSpdOm(){

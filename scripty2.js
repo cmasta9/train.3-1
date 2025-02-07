@@ -1249,6 +1249,16 @@ function clearIntervals(){
 }
 
 function reset(s=false){
+    let highS = localStorage.getItem('highScore');
+    if(!highS){
+        localStorage.setItem('highScore',hits);
+        alert(`You got a new high score: ${hits}!`);
+    }else{
+        if(hits > Number(localStorage.getItem('highScore'))){
+            localStorage.setItem('highScore',hits);
+            alert(`You got a new high score: ${hits}!`);
+        }
+    }
     removeRocks();
     jet.position.copy(origin);
     jet.rotation.x = 0;
