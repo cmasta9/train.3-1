@@ -1638,7 +1638,7 @@ function watcherConts(){
         conText.innerText = 'Press P to pilot and disembark.';
     }else if (beatBoss && dist(person.position,trophyOrigin) < planeSize.z/2){
         conText.innerText = 'Congratulations for protecting the city.';
-    }else if(person.position.x < trackSize.x/2 && person.position.x > -trackSize.x/2){
+    }else if(person.position.x < trackSize.x/2 && person.position.x > -trackSize.x/2 && person.position.y <= trainSize.y){
         if(dist(person.position,trainGp.position) < trainSize.z && person.position.z >= trainGp.position.z){
             if(Math.abs(speedOm) > 20){
                 person.damage(3);
