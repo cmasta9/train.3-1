@@ -10,6 +10,7 @@ const spdHUD = document.getElementById('speed');
 const camHUD = document.getElementById('cam');
 const hitHUD = document.getElementById('hitCt');
 const camNum = document.getElementById('camNum');
+const hpHUD = document.getElementById('hp');
 let bossHUD = undefined;
 let bossHP = undefined;
 
@@ -123,6 +124,12 @@ let bullSpd = 11;
 let turnSpd = 2;
 let jetSpdMax = 8;
 let accel = 0.1;
+
+//let spdUpdate = 0;
+//let updF = 5;
+//let int = 0;
+
+let lastPos = new THREE.Vector3();
 
 let fireCDtime = 0.2;
 let fireCD = false;
@@ -325,6 +332,7 @@ export function animLoop(){
                 scene.add(mothership);
                 rend.render(scene,interestCam);
                 rend.setAnimationLoop(cutLoop1);
+                spdHUD.innerText = '';
                 console.log('cut start');
             }
             setCamText();
@@ -370,6 +378,7 @@ function cutLoop1(){
         go = true;
         rend.setAnimationLoop(animLoopMain);
     }
+    //spdOm();
 }
 
 function animLoopMain(){
@@ -388,8 +397,22 @@ function animLoopMain(){
     addEnemies();
     energyHandle();
     drawBarrier();
+    //spdOm();
     prevTime = Date.now();
     rend.render(scene,interestCam);
+}
+
+function spdOm(){
+    if(spdUpdate > updF){
+        spdHUD.innerText = `${(dist(jet.position,lastPos)/updF/(int/36000)).toPrecision(4)} km/hr`;
+        lastPos.copy(jet.position);
+        int = 0;
+        spdUpdate = 0;
+    }else{
+        int += (Date.now()-prevTime);
+        prevTime = Date.now();
+    }
+    spdUpdate++;
 }
 
 function enemyInt(){
@@ -1161,12 +1184,12 @@ function drawBarrier(){
     }
 }
 
-export function drawHP(){
+export function drawHP(hp2=hp,hud=hpHUD){
     let hps = '';
-    for(let h = 0; h < hp; h++){
+    for(let h = 0; h < hp2; h++){
         hps = hps + '&#x2665;';
     }
-    spdHUD.innerHTML = hps;
+    hud.innerHTML = hps;
 }
 
 export function drawHits(){

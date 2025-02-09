@@ -30,6 +30,14 @@ body{
     width: fit-content;
 }
 
+#hp{
+    left:2%;
+    top:10%;
+    text-align: left;
+    font-size: 42px;
+    width: fit-content;
+}
+
 #cam{
     left:2%;
     top:75%;

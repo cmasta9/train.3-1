@@ -20,7 +20,7 @@ const sstack = './graphics/powerstack.glb';
 const alien = './graphics/alienBeing.glb';
 const cloud = './graphics/cloud.glb';
 const ufo = './graphics/ufo2.glb';
-const desk = './graphics/officeDesk2.glb';
+const desk = './graphics/officeDesk3.glb';
 const bern = './graphics/bernie2.glb';
 const trophy = './graphics/trophy.glb';
 
@@ -40,6 +40,7 @@ const camNum = document.getElementById('camNum');
 const hitHUD = document.getElementById('hitCt');
 const centext = document.getElementById('centext');
 const conText = document.getElementById('control');
+const hpHUD = document.getElementById('hp');
 
 const stageDim = 1000;
 const scene = new THREE.Scene();
@@ -83,6 +84,8 @@ let doorsOpen = false;
 let engineOffset = -0.85;
 let passOffset = -0.1;
 let distOffset = 1;
+
+let updF = 5;
 
 let statDist = 2.5;
 let stationYoff = 0.75;
@@ -129,6 +132,8 @@ let windmillClip = undefined;
 
 let buildingSize = new THREE.Vector3();
 let deskSize = new THREE.Vector3();
+let deskPos = new THREE.Vector3();
+let peeper = new THREE.Object3D();
 
 let plane = new THREE.Object3D();
 let powerPlant = new THREE.Object3D();
@@ -147,6 +152,10 @@ let decoyDrift = true;
 let person = new Passenger();
 let perSize = new THREE.Vector3();
 let maxHealth = 3;
+let jump = false;
+let jumpTime = 0.2;
+let jumpSpd = 0.2;
+let jumpStop = undefined;
 
 let numPeeps = 10;
 
@@ -334,10 +343,9 @@ function anim(){
             plane.rotation.z = 0;
         }
     }
+    dTime = (Date.now() - prevTime)/1000;
     updateSpdOm();
     moveCam();
-    dTime = (Date.now() - prevTime)/1000;
-    prevTime = Date.now();
     if(stop){
         for(let i = 0; i < trainMixers.length; i++){
             trainMixers[i].update(dTime);
@@ -349,6 +357,19 @@ function anim(){
     drifting();
     sky.rotation.y += skyRot;
     rend.render(scene,interestCam);
+}
+
+function upStart(){
+    sky.rotation.y += skyRot;
+    if(dist(person.position,porigin) < 2){
+        person.position.x -= watcherSpd/10;
+    }
+    rend.render(scene,camP);
+    dTime = (Date.now() - prevTime)/1000;
+    prevTime = Date.now();
+    for(let j = 0; j < peepMixers.length; j++){
+        peepMixers[j].update(dTime);
+    }
 }
 
 function upDead(){
@@ -484,6 +505,15 @@ window.addEventListener('keydown', (k)=>{
         if((k.key == 'ArrowDown' || k.key == 's') && Math.abs(input[1]) < maxInput){
             input[1] -= 1;
         }
+
+        if(k.key == ' '){
+            if(interestCam == camP && !flying){
+                jump = true;
+                jumpStop = setTimeout(()=>{
+                    jump = false;
+                },jumpTime*1000);
+            }
+        }
     
         if(k.key == 'b'){
             boosting = true;
@@ -541,6 +571,7 @@ window.addEventListener('keydown', (k)=>{
 function initClick(){
     if(!start){
         start = true;
+        window.removeEventListener('click',initClick);
         centext.innerText = '';
         hitHUD.innerText = '';
         conText.innerText = '';
@@ -549,9 +580,18 @@ function initClick(){
         music.unmute();
         music.fadeIn(1,0);
         music.updateMute();
-        rend.setAnimationLoop(anim);
-        window.removeEventListener('click',initClick);
+        initPerson();
     }
+}
+
+function initPerson(){
+    rend.setAnimationLoop(upStart);
+    camP.position.copy(new THREE.Vector3(2,perSize.y/2,0));
+    camP.lookAt(person.position);
+    setTimeout(()=>{
+        initPersonCam();
+        rend.setAnimationLoop(anim);
+    },2000);
 }
 
 window.addEventListener('keyup',(k)=>{
@@ -567,6 +607,12 @@ window.addEventListener('keyup',(k)=>{
     }
     if(k.key == 'h'){
         hover = false;
+    }
+    if(k.key == ' '){
+        if(jump){
+            jump = false;
+            clearTimeout(jumpStop);
+        }
     }
 });
 
@@ -608,6 +654,7 @@ function setCamText(){
         return 'Camera: Train';
     }else if(interestCam == camP){
         camNum.innerHTML = '0 1 2 <b>3</b> 4 5';
+        drawHP(person.health,hpHUD);
         return 'Camera: Watcher';
     }else if(interestCam == camA){
         camNum.innerHTML = '0 1 2 3 <b>4</b> 5';
@@ -882,18 +929,27 @@ function moveCamP(){
             person.position.z += dir.z*watcherSpd;
         }
     }
-    if(person.position.y > ground.position.y + perSize.y/2){
-        if(!raycast(scene,person.position,new THREE.Vector3(0,-1,0),watcherSpd,-perSize.y/2)){
+    if(person.position.y > ground.position.y + perSize.y/2 && !jump){
+        if(!raycastDwn()){
             person.position.y -= watcherSpd;
         }else{
-            if(!raycast(scene,person.position,new THREE.Vector3(0,-1,0),0.02,-perSize.y/2)){
-                person.position.y -= 0.02;
+            if(!raycastDwn(1,watcherSpd/10)){
+                person.position.y -= watcherSpd/10;
             }
         }
         if(person.position.y < ground.position.y + perSize.y/2){
             person.position.y = ground.position.y + perSize.y/2;
         }
+    }else if(jump){
+        person.position.y += jumpSpd;
     }
+}
+
+function raycastDwn(r=1,l=watcherSpd){
+    if(raycast(scene,person.position,new THREE.Vector3(0,-r,0),l,-perSize.y/2)){
+        return true;
+    }
+    return false;
 }
 
 function moveCamA(){
@@ -1054,10 +1110,9 @@ function loadBuildings(){
 function setOffice(b=0){
     let desk = new THREE.Object3D();
     desk.copy(deskObj);
-    desk.position.x = buildings[b].position.x;
-    desk.position.z = buildings[b].position.z;
-    desk.position.y = buildings[b].position.y + deskSize.y/2;
-    let peeper = new THREE.Object3D();
+    deskPos = new THREE.Vector3(buildings[b].position.x,buildings[b].position.y + deskSize.y/2,buildings[b].position.z);
+    desk.position.copy(deskPos);
+    peeper = new THREE.Object3D();
     peeper.copy(peepObj);
     peeper.position.copy(desk.position);
     peeper.position.y += 0.5;
@@ -1561,21 +1616,20 @@ function loadTrophy(){
 }
 
 function updateSpdOm(){
-    if(spUpdate >= 5){
+    //speed artificially multiplied by 10
+    if(spUpdate > updF){
         if(interestCam != camA && interestCam != camA2 && !(interestCam == camP && boardedPlane)){
-            speedOm = (trainGp.position.z - lastZ) / dTime * (18/5)/5;
-            //brake.innerText = (speedOm / accel * dTime / (18/5)).toPrecision(2);
+            speedOm = (trainGp.position.z - lastZ) / (dTime * .36) /updF;
             lastZ = trainGp.position.z;
-            spdHud.innerText = `${Math.abs(speedOm).toPrecision(3)} km/hr`;
             spUpdate = 0;
-        }else{
-            speedOm = dist(plane.position,lastPl) / dTime * (18/5)/5;
+        }else if(boardedPlane){
+            speedOm = dist(plane.position,lastPl) / (dTime * .36) /updF;
             lastPl.copy(plane.position);
             spUpdate = 0;
         }
-    }else{
         spdHud.innerText = `${Math.abs(speedOm).toPrecision(3)} km/hr`;
     }
+    prevTime = Date.now();
     spUpdate++;
 }
 
@@ -1587,7 +1641,8 @@ function watcherConts(){
     }else if(person.position.x < trackSize.x/2 && person.position.x > -trackSize.x/2){
         if(dist(person.position,trainGp.position) < trainSize.z && person.position.z >= trainGp.position.z){
             if(Math.abs(speedOm) > 20){
-                conText.innerText = person.damage(3);
+                person.damage(3);
+                drawHP(person.health,hpHUD);
             }
         }
     }else{
@@ -1601,6 +1656,7 @@ function watcherConts(){
 function death(){
     dead = true;
     rend.setAnimationLoop(upDead);
+    let marg = centext.style.marginInline;
     centext.style.marginInline = '40%';
     centext.innerText = 'Failure...';
     person.rotation.z = Math.PI/2;
@@ -1611,9 +1667,10 @@ function death(){
         person.health = maxHealth;
         resetCam();
         centext.innerText = '';
+        centext.style.marginInline = marg;
         dead = false;
-        rend.setAnimationLoop(anim);
-    },3000);
+        initPerson();
+    },4200);
 }
 
 function loadBern(p=undefined){
