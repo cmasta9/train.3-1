@@ -1,7 +1,7 @@
 import * as THREE from 'three';
 import {GLTFLoader} from 'three/addons/loaders/GLTFLoader.js';
 import {Passenger} from './passenger.js';
-import {dirTo, dist,pointOnLine,progress,raycast,normalize} from './loc.js';
+import {dirTo, dist,pointOnLine,progress,raycast,hitObj,normalize} from './loc.js';
 import {moveJet,moveJetCam,jetSpd,getFore} from './jetMove.js';
 import {drawHits,drawHP,setIntervals,setGo,switchSceneX, animLoop} from './scripty2.js';
 import * as music from './music.js';
@@ -17,7 +17,7 @@ const windmill = './graphics/windmill.glb';
 const airship = './graphics/airship1.glb';
 const powerplant = './graphics/powerplant.glb';
 const sstack = './graphics/powerstack.glb';
-const alien = './graphics/alienBeing.glb';
+const alien = './graphics/alienBeing2.glb';
 const cloud = './graphics/cloud.glb';
 const ufo = './graphics/ufo2.glb';
 const desk = './graphics/officeDesk3.glb';
@@ -90,7 +90,7 @@ let updF = 5;
 let statDist = 2.5;
 let stationYoff = 0.75;
 let stationXoff = 3.5;
-let stationXoff2= 2.5;
+let stationXoff2 = 2.7;
 let stationZoff = 3;
 let statY = 1.75;
 let doorDist = 14;
@@ -233,6 +233,8 @@ let ready = false;
 let bernin = false;
 let dead = false;
 
+let boardedTren = false;
+
 loadModels();
 let scene2 = false;
 const origin = new THREE.Vector3(0,camHeight,0);
@@ -265,7 +267,7 @@ document.getElementById('mute').addEventListener('click',()=>{
 rend.setAnimationLoop(animPre);
 let spUpdate = 0;
 let speedOm = 0;
-hitHUD.innerText = 'Click Here\nto Start';
+hitHUD.innerHTML = '<b>Click Here<br>to Start</b>';
 
 function animPre(){
     if(!loadingComp){
@@ -922,23 +924,25 @@ function moveCamP(){
     }
     dir = normalize(dir);
     if(input[1] != 0 || input[0] != 0){
-        if(!raycast(scene,person.position,dirTo(person.position,new THREE.Vector3(person.position.x+dir.x,person.position.y,person.position.z)),Math.abs(dir.x*watcherSpd*2),perSize.x/2)){
+        let perp = new THREE.Vector3(person.position.x,person.position.y+perSize.y/2,person.position.z);
+        if(!raycast(scene,perp,dirTo(perp,new THREE.Vector3(perp.x+dir.x,perp.y,perp.z)),Math.abs(dir.x*watcherSpd*1.2),perSize.x/2)){
             person.position.x += dir.x*watcherSpd;
         }
-        if(!raycast(scene,person.position,dirTo(person.position,new THREE.Vector3(person.position.x,person.position.y,person.position.z+dir.z)),Math.abs(dir.z*watcherSpd*2),perSize.z/2)){
+        if(!raycast(scene,perp,dirTo(perp,new THREE.Vector3(perp.x,perp.y,perp.z+dir.z)),Math.abs(dir.z*watcherSpd*1.2),perSize.z/2)){
             person.position.z += dir.z*watcherSpd;
         }
     }
     if(person.position.y > ground.position.y + perSize.y/2 && !jump){
-        if(!raycastDwn()){
+        let dis = raycastDwn();
+        if(!dis){
             person.position.y -= watcherSpd;
-        }else{
-            if(!raycastDwn(1,watcherSpd/10)){
-                person.position.y -= watcherSpd/10;
+            if(person.position.y < ground.position.y + perSize.y/2){
+                person.position.y = ground.position.y + perSize.y/2;
             }
-        }
-        if(person.position.y < ground.position.y + perSize.y/2){
-            person.position.y = ground.position.y + perSize.y/2;
+        }else{
+            if(hitObj(ground,person.position,new THREE.Vector3(0,-r,0),l,-perSize.y/2)){
+                person.position.y -= dis;
+            }
         }
     }else if(jump){
         person.position.y += jumpSpd;
@@ -946,8 +950,9 @@ function moveCamP(){
 }
 
 function raycastDwn(r=1,l=watcherSpd){
-    if(raycast(scene,person.position,new THREE.Vector3(0,-r,0),l,-perSize.y/2)){
-        return true;
+    let ints = raycast(scene,person.position,new THREE.Vector3(0,-r,0),l,-perSize.y/2);
+    if(ints.length > 0){
+        return ints[0].distance;
     }
     return false;
 }
@@ -1255,7 +1260,7 @@ function setTrain(n){
     trainGp.add(tail);
     train.push(tail);
 
-    trainSize = new THREE.Vector3(engineSize.x,engineSize.y,2*engineSize.z+n*carSize.z-2*distOffset);
+    trainSize = new THREE.Vector3(engineSize.x,engineSize.y,engineSize.z+n*carSize.z-2*distOffset);
     scene.add(trainGp);
 }
 
@@ -1639,7 +1644,7 @@ function watcherConts(){
     }else if (beatBoss && dist(person.position,trophyOrigin) < planeSize.z/2){
         conText.innerText = 'Congratulations for protecting the city.';
     }else if(person.position.x < trackSize.x/2 && person.position.x > -trackSize.x/2 && person.position.y <= trainSize.y){
-        if(dist(person.position,trainGp.position) < trainSize.z && person.position.z >= trainGp.position.z){
+        if(dist(person.position,trainGp.position) < trainSize.z && person.position.z > trainGp.position.z){
             if(Math.abs(speedOm) > 20){
                 person.damage(3);
                 drawHP(person.health,hpHUD);

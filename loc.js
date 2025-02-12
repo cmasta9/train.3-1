@@ -43,9 +43,22 @@ export function pointOnLine(i,f,prog){
 
 export function raycast(s,pos,dir,f=1,n=0){
     let ray = new Raycaster(pos,dir,n,2*f);
-    //console.log(dir);
-    if(ray.intersectObjects(s.children).length > 0){
-        return true;
+    let ints = ray.intersectObjects(s.children);
+    console.log('len',ints.length);
+    if(ints.length > 0){
+        console.log('dis',ints[0].distance);
+        return ints[0].distance;
+    }
+    return false;
+}
+
+export function hitObj(o,pos,dir,f=1,n=0){
+    let ray = new Raycaster(pos,dir,n,2*f);
+    let ints = ray.intersectObjects(o);
+    console.log('len',ints.length);
+    if(ints.length > 0){
+        console.log('dis',ints[0].distance);
+        return ints[0].distance;
     }
     return false;
 }
