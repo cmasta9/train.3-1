@@ -23,7 +23,7 @@ const ufo = './graphics/ufo2.glb';
 const boss = './graphics/bossShip1l2.glb';
 const shot = './graphics/shot.glb';
 const merkaba = './graphics/energy.glb';
-const alien = './graphics/alienBeing.glb';
+const alien = './graphics/alienBeing2.glb';
 
 const lazarSE = './audio/se_laserShotSep.mp3';
 const splodeSE = './audio/se_splodeSpace.mp3';
