@@ -154,8 +154,9 @@ let perSize = new THREE.Vector3();
 let maxHealth = 3;
 let jump = false;
 let jumpTime = 0.2;
-let jumpSpd = 0.2;
+let jumpSpd = 0.9;
 let jumpStop = undefined;
+let grounded = true;
 
 let numPeeps = 10;
 
@@ -180,6 +181,8 @@ let boardedPlane = false;
 let planeHeight = stageDim/2*(2/5);
 let decoyInitY = stageDim/2*(4/5);
 let ufoInitY = (decoyInitY+stageDim/2)/2;
+
+let camPlaneOff = 0.6;
 
 const maxSpd = 1.5;
 let trainSpd = 0.5;
@@ -219,8 +222,8 @@ let loadProg = 0;
 
 let camRot = Math.PI/2;
 let camDist = 30;
-let camHeight = 1.6;
-let fPersonCam = new THREE.Vector3(0,camHeight,0);
+let camHeight = 0.66;
+let fPersonCam = new THREE.Vector3(0.15,camHeight,0);
 
 let interestCam = cam;
 
@@ -509,8 +512,9 @@ window.addEventListener('keydown', (k)=>{
         }
 
         if(k.key == ' '){
-            if(interestCam == camP && !flying){
+            if(interestCam == camP && !flying && grounded){
                 jump = true;
+                grounded = false;
                 jumpStop = setTimeout(()=>{
                     jump = false;
                 },jumpTime*1000);
@@ -537,6 +541,7 @@ window.addEventListener('keydown', (k)=>{
             if(k.key == '2'){
                 interestCam = cam;
                 camHud.innerText = setCamText();
+                interestCam.lookAt(trainGp.position);
                 camNum.innerHTML = '0 1 <b>2</b> 3 4 5';
             }
             if(k.key == '3'){
@@ -924,11 +929,12 @@ function moveCamP(){
     }
     dir = normalize(dir);
     if(input[1] != 0 || input[0] != 0){
-        let perp = new THREE.Vector3(person.position.x,person.position.y+perSize.y/2,person.position.z);
-        if(!raycast(scene,perp,dirTo(perp,new THREE.Vector3(perp.x+dir.x,perp.y,perp.z)),Math.abs(dir.x*watcherSpd*1.2),perSize.x/2)){
+        let perp = new THREE.Vector3(person.position.x,person.position.y,person.position.z);
+        let perpH = new THREE.Vector3(perp.x,perp.y+perSize.y/2,perp.z);
+        if(!raycast(scene,perp,dirTo(perp,new THREE.Vector3(perp.x+dir.x,perp.y,perp.z)),Math.abs(dir.x*watcherSpd*1.2),perSize.x/2) && !raycast(scene,perpH,dirTo(perpH,new THREE.Vector3(perp.x+dir.x,perpH.y,perp.z)),Math.abs(dir.x*watcherSpd*1.2),perSize.x/2)){
             person.position.x += dir.x*watcherSpd;
         }
-        if(!raycast(scene,perp,dirTo(perp,new THREE.Vector3(perp.x,perp.y,perp.z+dir.z)),Math.abs(dir.z*watcherSpd*1.2),perSize.z/2)){
+        if(!raycast(scene,perp,dirTo(perp,new THREE.Vector3(perp.x,perp.y,perp.z+dir.z)),Math.abs(dir.z*watcherSpd*1.2),perSize.z/2) && !raycast(scene,perpH,dirTo(perp,new THREE.Vector3(perp.x,perpH.y,perp.z+dir.z)),Math.abs(dir.z*watcherSpd*1.2),perSize.z/2)){
             person.position.z += dir.z*watcherSpd;
         }
     }
@@ -936,13 +942,20 @@ function moveCamP(){
         let dis = raycastDwn();
         if(!dis){
             person.position.y -= watcherSpd;
-            if(person.position.y < ground.position.y + perSize.y/2){
-                person.position.y = ground.position.y + perSize.y/2;
-            }
         }else{
-            if(hitObj(ground,person.position,new THREE.Vector3(0,-r,0),l,-perSize.y/2)){
-                person.position.y -= dis;
+            let maxY = dis[0].point.y;
+            for(let i = 1; i < dis.length; i++){
+                if(dis[i].point.y > maxY){
+                    maxY = dis[i].point.y;
+                }
+                //console.log(maxY);
             }
+            person.position.y = maxY + perSize.y/2;  
+            grounded = true;         
+        }
+        if(person.position.y < ground.position.y + perSize.y/2){
+            person.position.y = ground.position.y + perSize.y/2;
+            grounded = true;
         }
     }else if(jump){
         person.position.y += jumpSpd;
@@ -950,9 +963,9 @@ function moveCamP(){
 }
 
 function raycastDwn(r=1,l=watcherSpd){
-    let ints = raycast(scene,person.position,new THREE.Vector3(0,-r,0),l,-perSize.y/2);
-    if(ints.length > 0){
-        return ints[0].distance;
+    let ints = raycast(scene,person.position,new THREE.Vector3(0,-r,0),l,0);
+    if(ints){
+        return ints;
     }
     return false;
 }
@@ -1703,7 +1716,7 @@ function boardPlane(){
     if(!flying && dist(person.position,plane.position) < planeSize.z/2){
         flying = true;
         boardedPlane = true;
-        person.position.copy(new THREE.Vector3(0,perSize.y/2,planeSize.z/4));
+        person.position.copy(new THREE.Vector3(0,perSize.y/2+camPlaneOff,planeSize.z/4));
         plane.add(person);
         person.rotation.y = -Math.PI/2;
         interestCam = camA2;
@@ -1719,8 +1732,8 @@ function boardPlane(){
         scene.add(person);
         //initPersonCam();
         interestCam = camP;
-        resetCam();
         boardedPlane = false;
+        resetCam();
     }
 }
 
