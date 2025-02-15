@@ -157,6 +157,7 @@ let jumpTime = 0.2;
 let jumpSpd = 0.9;
 let jumpStop = undefined;
 let grounded = true;
+let airtime = 0;
 
 let numPeeps = 10;
 
@@ -328,6 +329,7 @@ function rotCam(p,dxz,dy,t){
 
 function anim(){
     trainLoop();
+    watcherAll();
     if(flying && !hover && boardedPlane){
         if(interestCam == camA2 || interestCam == camP){
             if(dist(plane.position,mothership.position) < 100){
@@ -337,16 +339,11 @@ function anim(){
         }else{
             movePlane();
         }
-    }else if(!flying && interestCam == camP){
+    }else if(!boardedPlane && interestCam == camP){
         watcherConts();
-    }else if(flying && !boardedPlane){
-        if(dist(plane.position,planeOrigin) > planeSpd){
-            movePlane(planeOrigin);
-        }else{
-            flying = false;
-            plane.rotation.x = 0;
-            plane.rotation.z = 0;
-        }
+    }
+    if(flying && !boardedPlane){
+        resetPlane();
     }
     dTime = (Date.now() - prevTime)/1000;
     updateSpdOm();
@@ -512,7 +509,7 @@ window.addEventListener('keydown', (k)=>{
         }
 
         if(k.key == ' '){
-            if(interestCam == camP && !flying && grounded){
+            if(interestCam == camP && !boardedPlane && grounded){
                 jump = true;
                 grounded = false;
                 jumpStop = setTimeout(()=>{
@@ -642,8 +639,7 @@ function resetCam(){
         if(interestCam == cam){
             moveCam2();
         }
-        if(interestCam == camP && !flying){
-            person.position.copy(porigin);
+        if(interestCam == camP && !boardedPlane){
             initPersonCam();
         }
         camHud.innerText = setCamText();
@@ -940,6 +936,7 @@ function moveCamP(){
     }
     if(person.position.y > ground.position.y + perSize.y/2 && !jump){
         let dis = raycastDwn();
+        airtime += dTime;
         if(!dis){
             person.position.y -= watcherSpd;
         }else{
@@ -951,12 +948,23 @@ function moveCamP(){
                 //console.log(maxY);
             }
             person.position.y = maxY + perSize.y/2;  
-            grounded = true;         
+            grounded = true;
+            if(airtime > 1){
+                person.damage(Math.floor(airtime));
+                drawHP(person.health,hpHUD);
+            }
+            airtime = 0;
         }
         if(person.position.y < ground.position.y + perSize.y/2){
             person.position.y = ground.position.y + perSize.y/2;
             grounded = true;
+            if(airtime > 1){
+                person.damage(Math.floor(airtime));
+                drawHP(person.health,hpHUD);
+            }
+            airtime = 0;
         }
+        console.log('air',airtime);
     }else if(jump){
         person.position.y += jumpSpd;
     }
@@ -1652,21 +1660,27 @@ function updateSpdOm(){
 }
 
 function watcherConts(){
-    if(!flying && dist(person.position,plane.position) < planeSize.z/2){
+    if(!boardedPlane && dist(person.position,plane.position) < planeSize.z/2){
         conText.innerText = 'Press P to pilot and disembark.';
     }else if (beatBoss && dist(person.position,trophyOrigin) < planeSize.z/2){
         conText.innerText = 'Congratulations for protecting the city.';
-    }else if(person.position.x < trackSize.x/2 && person.position.x > -trackSize.x/2 && person.position.y <= trainSize.y){
-        if(dist(person.position,trainGp.position) < trainSize.z && person.position.z > trainGp.position.z){
-            if(Math.abs(speedOm) > 20){
-                person.damage(3);
-                drawHP(person.health,hpHUD);
-            }
-        }
     }else{
         conText.innerText = '';
     }
-    if(!dead && person.health <= 0){
+}
+
+function watcherAll(){
+    if(!boardedPlane){
+        if(person.position.x < trackSize.x/2 && person.position.x > -trackSize.x/2 && person.position.y <= trainSize.y){
+            if(dist(person.position,trainGp.position) < trainSize.z && person.position.z > trainGp.position.z){
+                if(Math.abs(speedOm) > 20){
+                    person.damage(3);
+                    drawHP(person.health,hpHUD);
+                }
+            }
+        }
+    }
+    if(!dead && person.health < 1){
         death();
     }
 }
@@ -1683,6 +1697,7 @@ function death(){
     interestCam = camP;
     setTimeout(()=>{
         person.health = maxHealth;
+        person.position.copy(porigin);
         resetCam();
         centext.innerText = '';
         centext.style.marginInline = marg;
@@ -1713,7 +1728,7 @@ function loadBern(p=undefined){
 }
 
 function boardPlane(){
-    if(!flying && dist(person.position,plane.position) < planeSize.z/2){
+    if(!boardedPlane && dist(person.position,plane.position) < planeSize.z/2){
         flying = true;
         boardedPlane = true;
         person.position.copy(new THREE.Vector3(0,perSize.y/2+camPlaneOff,planeSize.z/4));
@@ -1726,14 +1741,32 @@ function boardPlane(){
         setTimeout(()=>{
             conText.innerText = '';
         },2000);
-    }else if(flying && boardedPlane){
+    }else if(boardedPlane){
         plane.remove(person);
         person.position.copy(plane.position);
+        if(plane.position.y > planeSize.x){
+            person.position.y -= planeSize.y/2;
+        }else{
+            person.position.y += planeSize.y/2;
+        }
         scene.add(person);
         //initPersonCam();
         interestCam = camP;
         boardedPlane = false;
+        airtime = 0;
         resetCam();
+    }
+}
+
+function resetPlane(){
+    if(dist(plane.position,planeOrigin) > planeSpd){
+        console.log('moveback');
+        movePlane(planeOrigin);
+    }else{
+        console.log('wat');
+        flying = false;
+        plane.rotation.x = 0;
+        plane.rotation.z = 0;
     }
 }
 
