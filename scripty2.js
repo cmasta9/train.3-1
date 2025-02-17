@@ -32,36 +32,31 @@ const breakSE = './audio/se_ufoBreak.mp3';
 const recoverSE = './audio/se_recover1.mp3';
 const chargeSE = './audio/se_chargeLazar.mp3';
 const bigLazarSE = './audio/se_bigLazar.mp3';
+const boostSE = './audio/boostSE2.mp3';
 
 const bgMusic2 = './audio/futurescapes4.ogg';
 const bgMusic3 = './audio/fatefulEncounter2.ogg';
 
 const lazarClip = new Audio(lazarSE);
 lazarClip.volume = 0.5;
-lazarClip.loop = false;
 
 const splodeClip = new Audio(splodeSE);
-splodeClip.loop = false;
 
 const hitClip = new Audio(hitSE);
 lazarClip.volume = 0.8;
-hitClip.loop = false;
 
 const ufoClip = new Audio(breakSE);
 ufoClip.volume = 0.69;
-ufoClip.loop = false;
 
 const chargeClip = new Audio(chargeSE);
 chargeClip.volume = 0.69;
-chargeClip.loop = false;
 
 const boomClip = new Audio(bigLazarSE);
-boomClip.volume = 1;
-boomClip.loop = false;
 
 const recoverClip = new Audio(recoverSE);
 recoverClip.volume = 0.8;
-recoverClip.loop = false;
+
+const booSE = new Audio(boostSE);
 
 const gLoader = new GLTFLoader();
 const tLoader = new THREE.TextureLoader();
@@ -385,8 +380,16 @@ function animLoopMain(){
     if(go){
         moveJet2(jet,spd,[planeX,stageHei]);
         moveJetCam2(jet,cam,climbSpd,turnSpd,input,planeX,1);
-        let boost = getBoost();
-        spd = jetSpd(spd,jetSpdMax,jetSpdBase,accel,boost);
+        if(getBoost()){
+            if(booSE.currentTime > 0.8){
+                booSE.currentTime = 0.55;
+            }else{
+                booSE.play();
+            }
+            spd = jetSpd(spd,jetSpdMax,jetSpdBase,accel,true);
+        }else{
+            spd = jetSpd(spd,jetSpdMax,jetSpdBase,accel,false);
+        }
         for(let m = 0; m < mixers.length; m++){
             mixers[m].update((Date.now()-prevTime)/1000);
         }

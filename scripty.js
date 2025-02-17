@@ -29,6 +29,10 @@ const bgMusic2 = './audio/futurescapes4.ogg';
 music.setTrack(bgMusic);
 music.init();
 
+const damSE = new Audio('./audio/damage.mp3');
+const stSE = new Audio('./audio/startupSE.mp3');
+const booSE = new Audio('./audio/startupSE.mp3');
+
 let start = false;
 let chase = false;
 
@@ -519,6 +523,11 @@ window.addEventListener('keydown', (k)=>{
         }
     
         if(k.key == 'b'){
+            //console.log(pos,person.position);
+            if(!scene2 && person.position.equals(new THREE.Vector3(0,perSize.y/2+camPlaneOff,planeSize.z/4))){
+                booSE.play();
+                console.log(booSE.currentTime);
+            }
             boosting = true;
         }
         if(k.key == 'm'){
@@ -575,6 +584,7 @@ window.addEventListener('keydown', (k)=>{
 function initClick(){
     if(!start){
         start = true;
+        scene.remove(peeper);
         window.removeEventListener('click',initClick);
         centext.innerText = '';
         hitHUD.innerText = '';
@@ -950,6 +960,7 @@ function moveCamP(){
             person.position.y = maxY + perSize.y/2;  
             grounded = true;
             if(airtime > 1){
+                damSE.play();
                 person.damage(Math.floor(airtime));
                 drawHP(person.health,hpHUD);
             }
@@ -959,6 +970,7 @@ function moveCamP(){
             person.position.y = ground.position.y + perSize.y/2;
             grounded = true;
             if(airtime > 1){
+                damSE.play();
                 person.damage(Math.floor(airtime));
                 drawHP(person.health,hpHUD);
             }
@@ -1674,6 +1686,7 @@ function watcherAll(){
         if(person.position.x < trackSize.x/2 && person.position.x > -trackSize.x/2 && person.position.y <= trainSize.y){
             if(dist(person.position,trainGp.position) < trainSize.z && person.position.z > trainGp.position.z){
                 if(Math.abs(speedOm) > 20){
+                    damSE.play();
                     person.damage(3);
                     drawHP(person.health,hpHUD);
                 }
@@ -1731,6 +1744,7 @@ function boardPlane(){
     if(!boardedPlane && dist(person.position,plane.position) < planeSize.z/2){
         flying = true;
         boardedPlane = true;
+        stSE.play();
         person.position.copy(new THREE.Vector3(0,perSize.y/2+camPlaneOff,planeSize.z/4));
         plane.add(person);
         person.rotation.y = -Math.PI/2;
