@@ -17,7 +17,7 @@ const windmill = './graphics/windmill.glb';
 const airship = './graphics/airship1.glb';
 const powerplant = './graphics/powerplant.glb';
 const sstack = './graphics/powerstack.glb';
-const alien = './graphics/alienBeing2.glb';
+const alien = './graphics/alienBeingO.glb';
 const cloud = './graphics/cloud.glb';
 const ufo = './graphics/ufo2.glb';
 const desk = './graphics/officeDesk3.glb';
@@ -45,6 +45,8 @@ const hitHUD = document.getElementById('hitCt');
 const centext = document.getElementById('centext');
 const conText = document.getElementById('control');
 const hpHUD = document.getElementById('hp');
+
+let high = undefined;
 
 const stageDim = 1000;
 const scene = new THREE.Scene();
@@ -96,7 +98,7 @@ let stationYoff = 0.75;
 let stationXoff = 3.5;
 let stationXoff2 = 2.7;
 let stationZoff = 3;
-let statY = 1.75;
+let statY = 1.25;
 let doorDist = 14;
 let carOffIn = 1.5;
 
@@ -172,7 +174,10 @@ let lastPl = new THREE.Vector3();
 
 let spd = 0.05;
 let perSpd = 0.1;
-let watcherSpd = 1;
+
+let basePerspd = 0.1;
+let runSpd = 1;
+let watcherSpd = basePerspd;
 
 let planeSpd = 0.42;
 const planeSpdBase = planeSpd;
@@ -227,7 +232,7 @@ let loadProg = 0;
 
 let camRot = Math.PI/2;
 let camDist = 30;
-let camHeight = 0.66;
+let camHeight = 1.26;
 let fPersonCam = new THREE.Vector3(0.15,camHeight,0);
 
 let interestCam = cam;
@@ -368,7 +373,7 @@ function anim(){
 function upStart(){
     sky.rotation.y += skyRot;
     if(dist(person.position,porigin) < 2){
-        person.position.x -= watcherSpd/10;
+        person.position.x -= watcherSpd;
     }
     rend.render(scene,camP);
     dTime = (Date.now() - prevTime)/1000;
@@ -477,6 +482,8 @@ function loadLoop(){
         loadAirship();
         setPeeps(numPeeps);
         person = setPers();
+        person.layers.enable(2);
+        console.log(person.layers.isEnabled(2));
         person.health = maxHealth;
         setSkyProps();
         loadTrophy();
@@ -513,7 +520,7 @@ window.addEventListener('keydown', (k)=>{
         }
 
         if(k.key == ' '){
-            if(interestCam == camP && !boardedPlane && grounded){
+            if(interestCam == camP && !boardedPlane && !boardedTren && grounded){
                 jump = true;
                 grounded = false;
                 jumpStop = setTimeout(()=>{
@@ -529,6 +536,9 @@ window.addEventListener('keydown', (k)=>{
                 console.log(booSE.currentTime);
             }
             boosting = true;
+            if(interestCam == camP){
+                watcherSpd = runSpd;
+            }
         }
         if(k.key == 'm'){
             music.toggleMute();
@@ -600,7 +610,7 @@ function initClick(){
 
 function initPerson(){
     rend.setAnimationLoop(upStart);
-    camP.position.copy(new THREE.Vector3(2,perSize.y/2,0));
+    camP.position.copy(new THREE.Vector3(3,perSize.y*0.8,0));
     camP.lookAt(person.position);
     setTimeout(()=>{
         initPersonCam();
@@ -618,6 +628,7 @@ window.addEventListener('keyup',(k)=>{
     }
     if(k.key == 'b'){
         boosting = false;
+        watcherSpd = basePerspd;
     }
     if(k.key == 'h'){
         hover = false;
@@ -935,55 +946,68 @@ function moveCamP(){
     }
     dir = normalize(dir);
     if(input[1] != 0 || input[0] != 0){
-        let perp = new THREE.Vector3(person.position.x,person.position.y,person.position.z);
-        let perpH = new THREE.Vector3(perp.x,perp.y+perSize.y/2,perp.z);
-        if(!raycast(scene,perp,dirTo(perp,new THREE.Vector3(perp.x+dir.x,perp.y,perp.z)),Math.abs(dir.x*watcherSpd*1.2),perSize.x/2) && !raycast(scene,perpH,dirTo(perpH,new THREE.Vector3(perp.x+dir.x,perpH.y,perp.z)),Math.abs(dir.x*watcherSpd*1.2),perSize.x/2)){
+        let perp = new THREE.Vector3(person.position.x,person.position.y+perSize.y/2,person.position.z);
+        let perpH = new THREE.Vector3(perp.x,person.position.y+perSize.y-0.1,perp.z);
+        if(!raycast(scene,perp,dirTo(perp,new THREE.Vector3(perp.x+dir.x,perp.y,perp.z)),Math.abs(dir.x*1.2),perSize.x/2+0.02) && !raycast(scene,perpH,dirTo(perpH,new THREE.Vector3(perpH.x+dir.x,perpH.y,perpH.z)),Math.abs(dir.x*1.2),perSize.x/2+0.02)){
             person.position.x += dir.x*watcherSpd;
         }
-        if(!raycast(scene,perp,dirTo(perp,new THREE.Vector3(perp.x,perp.y,perp.z+dir.z)),Math.abs(dir.z*watcherSpd*1.2),perSize.z/2) && !raycast(scene,perpH,dirTo(perp,new THREE.Vector3(perp.x,perpH.y,perp.z+dir.z)),Math.abs(dir.z*watcherSpd*1.2),perSize.z/2)){
+        if(!raycast(scene,perp,dirTo(perp,new THREE.Vector3(perp.x,perp.y,perp.z+dir.z)),Math.abs(dir.z*1.2),perSize.z/2+0.02) && !raycast(scene,perpH,dirTo(perpH,new THREE.Vector3(perpH.x,perpH.y,perpH.z+dir.z)),Math.abs(dir.z*1.2),perSize.z/2+0.02)){
             person.position.z += dir.z*watcherSpd;
         }
     }
-    if(person.position.y > ground.position.y + perSize.y/2 && !jump){
-        let dis = raycastDwn();
-        airtime += dTime;
-        if(!dis){
-            person.position.y -= watcherSpd;
-        }else{
-            let maxY = dis[0].point.y;
-            for(let i = 1; i < dis.length; i++){
-                if(dis[i].point.y > maxY){
-                    maxY = dis[i].point.y;
-                }
-                //console.log(maxY);
-            }
-            person.position.y = maxY + perSize.y/2;  
-            grounded = true;
-            if(airtime > 1){
-                damSE.play();
-                person.damage(Math.floor(airtime));
-                drawHP(person.health,hpHUD);
-            }
-            airtime = 0;
-        }
-        if(person.position.y < ground.position.y + perSize.y/2){
-            person.position.y = ground.position.y + perSize.y/2;
-            grounded = true;
-            if(airtime > 1){
-                damSE.play();
-                person.damage(Math.floor(airtime));
-                drawHP(person.health,hpHUD);
-            }
-            airtime = 0;
-        }
-        console.log('air',airtime);
-    }else if(jump){
+
+    if(jump){
         person.position.y += jumpSpd;
+        airtime += dTime;
+    }
+
+    if(!boardedTren && !boardedPlane){
+        if(person.position.y > ground.position.y){
+            if(!jump && !grounded){
+                let dis = raycastDwn(1,jumpSpd,0);
+                let fall = 0;
+                if(dis){
+                    fall = dis[0].distance;
+                    for(let i = 1; i < dis.length; i++){
+                        if(dis[i].distance < fall){
+                            fall = dis[i].distance;
+                        }
+                        //console.log(fall);
+                    }
+                    grounded = true;
+                    //console.log('grounded',grounded);
+                    if(airtime > 1){
+                        damSE.play();
+                        person.damage(Math.floor(airtime));
+                        drawHP(person.health,hpHUD);
+                    }
+                    airtime = 0;
+                }else{
+                    fall = jumpSpd;
+                    airtime += dTime;
+                }
+                person.position.y -= fall;
+            }else if(!jump && grounded){
+                let dis = raycastDwn(1,0.56,0.5);
+                if(!dis){
+                    grounded = false;
+                }
+            }
+        }else if(person.position.y < ground.position.y){
+            person.position.y = ground.position.y;
+            grounded = true;
+            if(airtime > 1){
+                damSE.play();
+                person.damage(Math.floor(airtime));
+                drawHP(person.health,hpHUD);
+            }
+            airtime = 0;
+        }
     }
 }
 
-function raycastDwn(r=1,l=watcherSpd){
-    let ints = raycast(scene,person.position,new THREE.Vector3(0,-r,0),l,0);
+function raycastDwn(r=1,l=jumpSpd,n=0){
+    let ints = raycast(scene,new THREE.Vector3(person.position.x,person.position.y+n,person.position.z),new THREE.Vector3(0,-r,0),l,0);
     if(ints){
         return ints;
     }
@@ -1153,7 +1177,6 @@ function setOffice(b=0){
     peeper = new THREE.Object3D();
     peeper.copy(peepObj);
     peeper.position.copy(desk.position);
-    peeper.position.y += 0.5;
 
     scene.add(desk);
     scene.add(peeper);
@@ -1162,7 +1185,7 @@ function setOffice(b=0){
     let clip = mixer.clipAction(peepClip);
     clip.play();
     peepMixers.push(mixer);
-    focusPts.push(peeper.position);
+    focusPts.push(new THREE.Vector3(peeper.position.x,peeper.position.y+perSize.y/2,peeper.position.z));
 }
 
 function loadWindmills(){
@@ -1234,7 +1257,6 @@ function initPersonCam(){
     camP.rotation.x = 0;
     camP.rotation.y = -Math.PI/2;
     camP.rotation.z = 0;
-
     person.add(camP);
 }
 
@@ -1675,22 +1697,49 @@ function watcherConts(){
     if(!boardedPlane && dist(person.position,plane.position) < planeSize.z/2){
         conText.innerText = 'Press P to pilot and disembark.';
     }else if (beatBoss && dist(person.position,trophyOrigin) < planeSize.z/2){
-        conText.innerText = 'Congratulations for protecting the city.';
+        if(!high){
+            high = localStorage.getItem('highScore');
+        }else{
+            conText.innerText = `Congratulations for protecting the city.\nYour high score is ${high} hits.`;
+        }
     }else{
+        high = undefined;
         conText.innerText = '';
     }
 }
 
 function watcherAll(){
-    if(!boardedPlane){
+    if(!boardedPlane && !boardedTren){
         if(person.position.x < trackSize.x/2 && person.position.x > -trackSize.x/2 && person.position.y <= trainSize.y){
             if(dist(person.position,trainGp.position) < trainSize.z && person.position.z > trainGp.position.z){
                 if(Math.abs(speedOm) > 20){
                     damSE.play();
                     person.damage(3);
                     drawHP(person.health,hpHUD);
+                }else{
+                    let pos = new THREE.Vector3();
+                    pos.copy(person.position);
+                    pos.sub(trainGp.position);
+                    person.position.x = pos.x;
+                    person.position.z = pos.z;
+                    person.position.y = 2;
+                    trainGp.add(person);
+                    boardedTren = true;
+                    console.log('boarded tren');
                 }
             }
+        }
+    }else if(boardedTren){
+        if(Math.abs(person.position.x) > trainSize.x/2){
+            trainGp.remove(person);
+            scene.add(person);
+            let pos = new THREE.Vector3();
+            pos.copy(trainGp.position);
+            pos.add(person.position);
+            person.position.copy(pos);
+            boardedTren = false;
+            grounded = false;
+            console.log('unboarded tren');
         }
     }
     if(!dead && person.health < 1){
@@ -1774,10 +1823,8 @@ function boardPlane(){
 
 function resetPlane(){
     if(dist(plane.position,planeOrigin) > planeSpd){
-        console.log('moveback');
         movePlane(planeOrigin);
     }else{
-        console.log('wat');
         flying = false;
         plane.rotation.x = 0;
         plane.rotation.z = 0;
